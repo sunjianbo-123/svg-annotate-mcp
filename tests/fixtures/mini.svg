@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="200pt" height="100pt" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 100 L 200 100 L 200 0 L 0 0 z" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 20 80 L 180 80 L 180 20 L 20 20 z" style="fill: #eeeeee"/>
+   </g>
+   <g id="text_1">
+    <text x="100" y="55" style="font: 8px sans-serif" text-anchor="middle">hello legend</text>
+   </g>
+   <g id="line2d_1">
+    <path d="M 20 80 L 180 20" style="stroke: #1f77b4; fill: none"/>
+   </g>
+  </g>
+ </g>
+</svg>

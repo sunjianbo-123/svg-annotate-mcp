@@ -1,0 +1,1951 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SVG 批注 · svg-annotate</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f6fa;
+        --panel: #ffffff;
+        --panel-2: #f7f8fb;
+        --ink: #172033;
+        --muted: #697386;
+        --line: #dfe3ea;
+        --blue: #2458d3;
+        --blue-soft: #e8efff;
+        --red: #ff3b30;
+        --shadow: 0 10px 30px rgba(31, 44, 75, 0.12);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #11151d;
+          --panel: #191f2a;
+          --panel-2: #222a37;
+          --ink: #f2f5fa;
+          --muted: #a5afc0;
+          --line: #333d4c;
+          --blue: #7ba2ff;
+          --blue-soft: #26385f;
+          --shadow: 0 10px 30px rgba(0, 0, 0, 0.36);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
+      button {
+        color: inherit;
+      }
+
+      .app {
+        height: 100vh;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        overflow: hidden;
+        background: var(--panel);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .title-wrap {
+        min-width: 0;
+      }
+
+      .title {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0;
+        font-size: 16px;
+        font-weight: 760;
+        letter-spacing: -0.01em;
+      }
+
+      .title-mark {
+        width: 25px;
+        height: 25px;
+        display: grid;
+        place-items: center;
+        border-radius: 8px;
+        background: var(--blue);
+        color: #fff;
+        font-size: 12px;
+      }
+
+      .file-path {
+        margin-top: 4px;
+        max-width: 720px;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 11px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .status {
+        min-width: 0;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: right;
+      }
+
+      .status[data-tone="ok"] {
+        color: #16834d;
+      }
+
+      .status[data-tone="error"] {
+        color: #d83b32;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        min-width: 0;
+        padding: 9px 12px;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+
+      .tool-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding-right: 8px;
+        margin-right: 1px;
+        border-right: 1px solid var(--line);
+      }
+
+      .tool-group:last-child {
+        margin-left: auto;
+        padding-right: 0;
+        border-right: 0;
+      }
+
+      .tool-button,
+      .plain-button,
+      .primary-button {
+        min-height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--panel);
+        cursor: pointer;
+        transition: 120ms ease;
+      }
+
+      .tool-button {
+        min-width: 38px;
+        padding: 5px 9px;
+        font-size: 13px;
+      }
+
+      .tool-button:hover,
+      .plain-button:hover {
+        border-color: var(--blue);
+      }
+
+      .tool-button[aria-pressed="true"] {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .tool-button:disabled,
+      .plain-button:disabled,
+      .primary-button:disabled {
+        cursor: default;
+        opacity: 0.45;
+      }
+
+      .plain-button,
+      .primary-button {
+        padding: 7px 11px;
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .primary-button {
+        border-color: var(--blue);
+        background: var(--blue);
+        color: #fff;
+      }
+
+      .zoom-wrap {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .zoom-wrap input {
+        width: 112px;
+        accent-color: var(--blue);
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 310px;
+        min-height: 0;
+      }
+
+      .viewport {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+        background-color: #dfe3ea;
+        background-image:
+          linear-gradient(45deg, rgba(255, 255, 255, 0.42) 25%, transparent 25%),
+          linear-gradient(-45deg, rgba(255, 255, 255, 0.42) 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.42) 75%),
+          linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.42) 75%);
+        background-position:
+          0 0,
+          0 10px,
+          10px -10px,
+          -10px 0;
+        background-size: 20px 20px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .viewport {
+          background-color: #11151d;
+          background-image:
+            linear-gradient(45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+            linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
+            linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%);
+        }
+      }
+
+      .canvas-shell {
+        width: 100%;
+        min-width: 520px;
+        padding: 40px;
+      }
+
+      .canvas-frame {
+        position: relative;
+        width: 100%;
+        margin: 0 auto;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: var(--shadow);
+        user-select: none;
+        touch-action: none;
+      }
+
+      .canvas-frame[data-tool="hand"] {
+        cursor: grab;
+      }
+
+      .canvas-frame[data-tool="hand"][data-drawing="true"] {
+        cursor: grabbing;
+      }
+
+      .canvas-frame[data-tool="rect"],
+      .canvas-frame[data-tool="arrow"],
+      .canvas-frame[data-tool="freehand"],
+      .canvas-frame[data-tool="text"] {
+        cursor: crosshair;
+      }
+
+      /* SVG 经 Shadow DOM 注入到 .stage,与页面样式/id 双向隔离 */
+      .stage {
+        display: block;
+        width: 100%;
+        pointer-events: none;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .empty-state {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 40px;
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+      }
+
+      .empty-state[hidden] {
+        display: none;
+      }
+
+      .sidebar {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        min-height: 0;
+        border-left: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .side-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 13px 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .side-head h2 {
+        margin: 0;
+        font-size: 13px;
+      }
+
+      .count-badge {
+        min-width: 25px;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 750;
+        text-align: center;
+      }
+
+      .comments {
+        min-height: 0;
+        overflow-y: auto;
+        padding: 8px;
+      }
+
+      .comment-empty {
+        padding: 34px 18px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+        text-align: center;
+      }
+
+      .comment-card {
+        display: grid;
+        grid-template-columns: 25px minmax(0, 1fr);
+        gap: 9px;
+        width: 100%;
+        margin-bottom: 6px;
+        padding: 9px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .comment-card:hover {
+        background: var(--panel-2);
+      }
+
+      .comment-card[aria-current="true"] {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .comment-card[data-submitted="true"] {
+        opacity: 0.55;
+      }
+
+      .comment-number {
+        width: 25px;
+        height: 25px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--comment-color, var(--red));
+        color: #fff;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .comment-kind {
+        margin-bottom: 3px;
+        color: var(--muted);
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+
+      .comment-note {
+        overflow: hidden;
+        font-size: 12px;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .editor {
+        padding: 12px;
+        border-top: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+
+      .editor[hidden] {
+        display: none;
+      }
+
+      .field {
+        display: grid;
+        gap: 5px;
+        margin-bottom: 9px;
+      }
+
+      .field[hidden] {
+        display: none;
+      }
+
+      .field label {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .field textarea,
+      .field input[type="text"] {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        color: var(--ink);
+        outline: none;
+      }
+
+      .field textarea {
+        min-height: 70px;
+        padding: 8px;
+        resize: vertical;
+        line-height: 1.4;
+      }
+
+      .field input[type="text"] {
+        height: 34px;
+        padding: 0 8px;
+      }
+
+      .field textarea:focus,
+      .field input[type="text"]:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 15%, transparent);
+      }
+
+      .editor-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .color-control {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .color-control input {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+      }
+
+      .danger {
+        color: #d83b32;
+      }
+
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 11px 13px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .footer-copy {
+        min-width: 0;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.35;
+      }
+
+      .footer-copy strong {
+        color: var(--ink);
+      }
+
+      /* ---------- v2:元素级点选 ---------- */
+
+      .hover-box {
+        fill: color-mix(in srgb, var(--blue) 8%, transparent);
+        stroke: var(--blue);
+        stroke-width: 1.5;
+        stroke-dasharray: 6 4;
+        pointer-events: none;
+      }
+
+      .picked-box {
+        fill: color-mix(in srgb, var(--blue) 12%, transparent);
+        stroke: var(--blue);
+        stroke-width: 2.5;
+        pointer-events: none;
+      }
+
+      .hover-chip {
+        position: absolute;
+        z-index: 5;
+        max-width: 62%;
+        padding: 3px 8px;
+        overflow: hidden;
+        border-radius: 6px;
+        background: var(--blue);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 650;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        pointer-events: none;
+      }
+
+      .hover-chip[hidden] {
+        display: none;
+      }
+
+      .picker {
+        padding: 12px;
+        border-top: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+
+      .picker[hidden] {
+        display: none;
+      }
+
+      .picker-title {
+        margin-bottom: 6px;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .picker-id {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .picker-text {
+        margin-top: 6px;
+        padding: 6px 9px;
+        border-left: 3px solid var(--blue);
+        border-radius: 0 6px 6px 0;
+        background: var(--panel);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .picker-text[hidden] {
+        display: none;
+      }
+
+      .picker-crumbs {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+        margin-top: 8px;
+      }
+
+      .crumb {
+        padding: 2px 7px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .crumb:not(:disabled):hover {
+        border-color: var(--blue);
+      }
+
+      .crumb:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+
+      .crumb[data-current="true"] {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+        color: var(--blue);
+        opacity: 1;
+      }
+
+      .crumb-sep {
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .picker-hint {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.45;
+      }
+
+      @media (max-width: 820px) {
+        .workspace {
+          grid-template-columns: 1fr;
+          grid-template-rows: minmax(480px, 1fr) 360px;
+        }
+
+        .sidebar {
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+
+        .tool-group:last-child {
+          margin-left: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="title-wrap">
+          <h1 class="title"><span class="title-mark">SVG</span><span id="filename">SVG 批注</span></h1>
+          <div class="file-path" id="filepath">等待 Claude 调用 open_svg…</div>
+        </div>
+        <div class="status" id="status">准备中</div>
+      </header>
+
+      <div class="toolbar" role="toolbar" aria-label="批注工具栏">
+        <div class="tool-group">
+          <button class="tool-button" type="button" data-tool="select" aria-pressed="true" title="选择 (V)">↖</button>
+          <button class="tool-button" type="button" data-tool="hand" aria-pressed="false" title="平移 (H)">✋</button>
+          <button class="tool-button" type="button" data-tool="rect" aria-pressed="false" title="矩形 (R)">▭</button>
+          <button class="tool-button" type="button" data-tool="arrow" aria-pressed="false" title="箭头 (A)">↗</button>
+          <button class="tool-button" type="button" data-tool="freehand" aria-pressed="false" title="自由线 (P)">✎</button>
+          <button class="tool-button" type="button" data-tool="text" aria-pressed="false" title="文字 (T)">T</button>
+        </div>
+        <div class="tool-group">
+          <button class="plain-button" id="undo" type="button" title="撤销 (⌘Z)">撤销</button>
+          <button class="plain-button" id="redo" type="button" title="重做 (⇧⌘Z)">重做</button>
+        </div>
+        <div class="tool-group">
+          <div class="zoom-wrap">
+            <span>缩放</span>
+            <input id="zoom" type="range" min="50" max="400" step="10" value="100" />
+            <span id="zoom-value">100%</span>
+          </div>
+          <button class="plain-button" id="fit" type="button">适合窗口</button>
+        </div>
+      </div>
+
+      <main class="workspace">
+        <section class="viewport" id="viewport" aria-label="SVG 批注画布">
+          <div class="canvas-shell">
+            <div class="canvas-frame" id="canvas-frame" data-tool="select" data-drawing="false">
+              <div class="stage" id="stage"></div>
+              <svg class="overlay" id="overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="批注图层">
+                <defs>
+                  <marker id="arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L8,4 L0,8 z" fill="context-stroke"></path>
+                  </marker>
+                </defs>
+                <g id="hover-layer"></g>
+                <g id="annotation-layer"></g>
+                <g id="draft-layer"></g>
+              </svg>
+              <div class="hover-chip" id="hover-chip" hidden></div>
+            </div>
+          </div>
+          <div class="empty-state" id="empty-state">等待 Claude 调用 open_svg 打开一张 SVG…</div>
+        </section>
+
+        <aside class="sidebar">
+          <div class="side-head">
+            <h2>修改意见</h2>
+            <span class="count-badge" id="comment-count">0</span>
+          </div>
+          <div class="comments" id="comments"></div>
+          <div class="picker" id="picker" hidden>
+            <div class="picker-title">元素检查器</div>
+            <div class="picker-id" id="picker-id"></div>
+            <div class="picker-text" id="picker-text" hidden></div>
+            <div class="picker-crumbs" id="picker-crumbs"></div>
+            <div class="picker-hint">在下方「修改说明」输入内容即为该元素创建批注;点面包屑可改选父组;Esc 或「取消选择」退出。</div>
+          </div>
+          <div class="editor" id="editor" hidden>
+            <div class="field" id="text-field" hidden>
+              <label for="annotation-text">画布文字</label>
+              <input id="annotation-text" type="text" maxlength="500" />
+            </div>
+            <div class="field">
+              <label for="annotation-note">修改说明</label>
+              <textarea id="annotation-note" maxlength="4000" placeholder="例如：将标题改为 Arial 8 pt，并与左侧面板对齐。"></textarea>
+            </div>
+            <div class="editor-actions">
+              <label class="color-control">颜色 <input id="annotation-color" type="color" value="#ff3b30" /></label>
+              <button class="plain-button danger" id="delete" type="button">删除批注</button>
+            </div>
+          </div>
+          <div class="footer">
+            <div class="footer-copy"><strong>原 SVG 只读</strong><br />批注直接回传给 Claude 修改源文件。</div>
+            <button class="primary-button" id="save" type="button" disabled>提交给 Claude</button>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <script>
+      (() => {
+        const $ = (selector) => document.querySelector(selector);
+        const elements = {
+          filename: $("#filename"),
+          filepath: $("#filepath"),
+          status: $("#status"),
+          viewport: $("#viewport"),
+          canvasFrame: $("#canvas-frame"),
+          stage: $("#stage"),
+          overlay: $("#overlay"),
+          annotationLayer: $("#annotation-layer"),
+          draftLayer: $("#draft-layer"),
+          hoverLayer: $("#hover-layer"),
+          hoverChip: $("#hover-chip"),
+          picker: $("#picker"),
+          pickerId: $("#picker-id"),
+          pickerText: $("#picker-text"),
+          pickerCrumbs: $("#picker-crumbs"),
+          emptyState: $("#empty-state"),
+          comments: $("#comments"),
+          commentCount: $("#comment-count"),
+          editor: $("#editor"),
+          textField: $("#text-field"),
+          annotationText: $("#annotation-text"),
+          annotationNote: $("#annotation-note"),
+          annotationColor: $("#annotation-color"),
+          deleteButton: $("#delete"),
+          saveButton: $("#save"),
+          undoButton: $("#undo"),
+          redoButton: $("#redo"),
+          zoom: $("#zoom"),
+          zoomValue: $("#zoom-value"),
+          fit: $("#fit")
+        };
+
+        const state = {
+          session: null,
+          loadedMtime: null,
+          annotations: [],
+          selectedId: null,
+          tool: "select",
+          drawing: null,
+          zoom: 100,
+          history: [],
+          future: [],
+          saving: false,
+          handStart: null,
+          editorSnapshot: null,
+          elementIndex: [],
+          elementById: new Map(),
+          hoverElement: null,
+          pickedElement: null
+        };
+
+        const stageShadow = elements.stage.attachShadow({ mode: "open" });
+
+        function cloneAnnotations(value = state.annotations) {
+          return JSON.parse(JSON.stringify(value));
+        }
+
+        function hasDrafts() {
+          return state.annotations.some((item) => !item.submitted);
+        }
+
+        function setStatus(message, tone = "") {
+          elements.status.textContent = message;
+          elements.status.dataset.tone = tone;
+        }
+
+        function setTool(tool) {
+          state.tool = tool;
+          state.drawing = null;
+          state.handStart = null;
+          state.hoverElement = null;
+          if (tool !== "select") state.pickedElement = null;
+          elements.canvasFrame.dataset.tool = tool;
+          elements.canvasFrame.dataset.drawing = "false";
+          document.querySelectorAll("[data-tool]").forEach((button) => {
+            if (button.tagName === "BUTTON") {
+              button.setAttribute("aria-pressed", String(button.dataset.tool === tool));
+            }
+          });
+          renderAll();
+        }
+
+        function markDirty() {
+          renderControls();
+          if (hasDrafts()) setStatus("有未提交的批注");
+        }
+
+        function pushHistory(previous) {
+          state.history.push(previous ?? cloneAnnotations());
+          if (state.history.length > 80) state.history.shift();
+          state.future = [];
+        }
+
+        function commitAnnotations(next, selectedId = state.selectedId) {
+          pushHistory(cloneAnnotations());
+          state.annotations = next;
+          state.selectedId = selectedId;
+          markDirty();
+          renderAll();
+        }
+
+        function selectedAnnotation() {
+          return state.annotations.find((item) => item.id === state.selectedId) ?? null;
+        }
+
+        function updateSelected(patch, rerenderSidebar = false) {
+          const annotation = selectedAnnotation();
+          if (!annotation || annotation.submitted) return;
+          Object.assign(annotation, patch);
+          markDirty();
+          renderOverlay();
+          if (rerenderSidebar) renderSidebar();
+        }
+
+        function annotationKindLabel(kind) {
+          return {
+            rect: "矩形",
+            arrow: "箭头",
+            freehand: "自由线",
+            text: "文字",
+            element: "元素"
+          }[kind] ?? kind;
+        }
+
+        function makeSvgElement(name, attributes = {}) {
+          const node = document.createElementNS("http://www.w3.org/2000/svg", name);
+          for (const [key, value] of Object.entries(attributes)) {
+            node.setAttribute(key, String(value));
+          }
+          return node;
+        }
+
+        function annotationAnchor(annotation) {
+          if (annotation.kind === "arrow") return { x: annotation.x1, y: annotation.y1 };
+          if (annotation.kind === "freehand") return annotation.points[0];
+          return { x: annotation.x, y: annotation.y };
+        }
+
+        function renderAnnotation(annotation, index, isDraft = false) {
+          const group = makeSvgElement("g", {
+            "data-ann-id": annotation.id ?? "draft",
+            tabindex: isDraft ? -1 : 0,
+            role: isDraft ? "presentation" : "button",
+            "aria-label": isDraft ? "正在绘制" : `批注 ${index + 1}`
+          });
+          if (annotation.submitted) group.setAttribute("opacity", "0.35");
+          const selected = !isDraft && annotation.id === state.selectedId;
+          const stroke = annotation.color ?? "#FF3B30";
+          const width = selected ? 5 : 3.5;
+          const common = {
+            stroke,
+            "stroke-width": width,
+            "vector-effect": "non-scaling-stroke",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round"
+          };
+
+          let shape;
+          if (annotation.kind === "rect" || annotation.kind === "element") {
+            shape = makeSvgElement("rect", {
+              x: annotation.x * 1000,
+              y: annotation.y * 1000,
+              width: annotation.w * 1000,
+              height: annotation.h * 1000,
+              rx: annotation.kind === "element" ? 2 : 8,
+              fill: selected ? "rgba(36,88,211,.08)" : "none",
+              ...common,
+              ...(annotation.kind === "element" ? { "stroke-dasharray": "8 5" } : {})
+            });
+          } else if (annotation.kind === "arrow") {
+            shape = makeSvgElement("line", {
+              x1: annotation.x1 * 1000,
+              y1: annotation.y1 * 1000,
+              x2: annotation.x2 * 1000,
+              y2: annotation.y2 * 1000,
+              "marker-end": "url(#arrow-head)",
+              ...common
+            });
+          } else if (annotation.kind === "freehand") {
+            shape = makeSvgElement("polyline", {
+              points: annotation.points.map((point) => `${point.x * 1000},${point.y * 1000}`).join(" "),
+              fill: "none",
+              ...common
+            });
+          } else {
+            shape = makeSvgElement("text", {
+              x: annotation.x * 1000,
+              y: annotation.y * 1000,
+              fill: stroke,
+              stroke: selected ? "rgba(36,88,211,.35)" : "none",
+              "stroke-width": 5,
+              "paint-order": "stroke",
+              "font-family": "Arial, Helvetica, sans-serif",
+              "font-size": 32,
+              "font-weight": 700
+            });
+            shape.textContent = annotation.text || "文字";
+          }
+          shape.style.pointerEvents = isDraft || annotation.submitted ? "none" : "stroke";
+          group.appendChild(shape);
+
+          if (!isDraft) {
+            const anchor = annotationAnchor(annotation);
+            const badge = makeSvgElement("circle", {
+              cx: anchor.x * 1000,
+              cy: anchor.y * 1000,
+              r: 17,
+              fill: stroke,
+              stroke: "#ffffff",
+              "stroke-width": 3,
+              "vector-effect": "non-scaling-stroke"
+            });
+            const label = makeSvgElement("text", {
+              x: anchor.x * 1000,
+              y: anchor.y * 1000 + 1,
+              fill: "#ffffff",
+              "font-family": "Arial, Helvetica, sans-serif",
+              "font-size": 21,
+              "font-weight": 800,
+              "text-anchor": "middle",
+              "dominant-baseline": "central",
+              "pointer-events": "none"
+            });
+            label.textContent = String(index + 1);
+            group.append(badge, label);
+          }
+          return group;
+        }
+
+        function renderOverlay() {
+          elements.annotationLayer.replaceChildren();
+          elements.draftLayer.replaceChildren();
+          state.annotations.forEach((annotation, index) => {
+            elements.annotationLayer.appendChild(renderAnnotation(annotation, index));
+          });
+          if (state.drawing?.annotation) {
+            elements.draftLayer.appendChild(renderAnnotation(state.drawing.annotation, 0, true));
+          }
+        }
+
+        function renderSidebar() {
+          elements.comments.replaceChildren();
+          elements.commentCount.textContent = String(state.annotations.length);
+
+          if (!state.annotations.length) {
+            const empty = document.createElement("div");
+            empty.className = "comment-empty";
+            empty.textContent = "直接点击图上的元素(悬停会高亮),或用矩形、箭头、自由线、文字工具添加修改意见。";
+            elements.comments.appendChild(empty);
+          } else {
+            state.annotations.forEach((annotation, index) => {
+              const button = document.createElement("button");
+              button.type = "button";
+              button.className = "comment-card";
+              button.dataset.id = annotation.id;
+              button.dataset.submitted = String(Boolean(annotation.submitted));
+              button.setAttribute("aria-current", String(annotation.id === state.selectedId));
+              button.style.setProperty("--comment-color", annotation.color);
+
+              const number = document.createElement("span");
+              number.className = "comment-number";
+              number.textContent = String(index + 1);
+
+              const copy = document.createElement("span");
+              const kind = document.createElement("div");
+              kind.className = "comment-kind";
+              kind.textContent =
+                annotationKindLabel(annotation.kind) +
+                (annotation.target?.id ? ` · ${annotation.target.id}` : "") +
+                (annotation.submitted ? " · 已提交" : "");
+              const note = document.createElement("div");
+              note.className = "comment-note";
+              note.textContent = annotation.note || (annotation.kind === "text" ? annotation.text : "待填写修改说明");
+              copy.append(kind, note);
+              button.append(number, copy);
+              button.addEventListener("click", () => {
+                state.selectedId = annotation.id;
+                setTool("select");
+                renderAll();
+              });
+              elements.comments.appendChild(button);
+            });
+          }
+
+          renderPicker();
+
+          const selected = selectedAnnotation();
+          const provisional = !selected && Boolean(state.pickedElement);
+          elements.editor.hidden = (!selected || Boolean(selected.submitted)) && !provisional;
+          if (elements.editor.hidden) return;
+          if (provisional) {
+            elements.textField.hidden = true;
+            if (document.activeElement !== elements.annotationNote) elements.annotationNote.value = "";
+            elements.deleteButton.textContent = "取消选择";
+            return;
+          }
+          elements.deleteButton.textContent = "删除批注";
+          elements.textField.hidden = selected.kind !== "text";
+          elements.annotationText.value = selected.text ?? "";
+          if (document.activeElement !== elements.annotationNote) {
+            elements.annotationNote.value = selected.note ?? "";
+          }
+          elements.annotationColor.value = selected.color ?? "#ff3b30";
+        }
+
+        function renderPicker() {
+          const picked = state.pickedElement;
+          elements.picker.hidden = !picked || Boolean(selectedAnnotation());
+          if (elements.picker.hidden) return;
+          const record = picked.record;
+          elements.pickerId.textContent = record.tag + (record.id ? ` · ${record.id}` : "");
+          elements.pickerText.hidden = !record.text;
+          elements.pickerText.textContent = record.text || "";
+          elements.pickerCrumbs.replaceChildren();
+          const chain = record.ancestors?.length ? record.ancestors : record.id ? [record.id] : [];
+          chain.forEach((id, index) => {
+            if (index) {
+              const sep = document.createElement("span");
+              sep.className = "crumb-sep";
+              sep.textContent = "›";
+              elements.pickerCrumbs.appendChild(sep);
+            }
+            const crumb = document.createElement("button");
+            crumb.type = "button";
+            crumb.className = "crumb";
+            crumb.textContent = id;
+            const current = id === record.id;
+            crumb.dataset.current = String(current);
+            const candidate = state.elementById.get(id);
+            crumb.disabled = current || !candidate;
+            if (!crumb.disabled) {
+              crumb.addEventListener("click", () => setPickedElement(candidate));
+            }
+            elements.pickerCrumbs.appendChild(crumb);
+          });
+        }
+
+        function renderControls() {
+          elements.undoButton.disabled = state.history.length === 0;
+          elements.redoButton.disabled = state.future.length === 0;
+          elements.saveButton.disabled = !state.session || state.saving || !hasDrafts();
+          elements.zoom.value = String(state.zoom);
+          elements.zoomValue.textContent = `${state.zoom}%`;
+          elements.canvasFrame.style.width = `${state.zoom}%`;
+        }
+
+        function renderAll() {
+          renderOverlay();
+          renderHoverLayer();
+          renderSidebar();
+          renderControls();
+        }
+
+        /* ---------- SVG 载入(fetch + DOMParser + Shadow DOM) ---------- */
+
+        async function loadSvg(mtime) {
+          const response = await fetch(`/svg?ts=${encodeURIComponent(mtime ?? Date.now())}`, {
+            cache: "no-store"
+          });
+          if (!response.ok) throw new Error(`SVG 加载失败(HTTP ${response.status})`);
+          const text = await response.text();
+          const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+          if (doc.getElementsByTagName("parsererror").length) {
+            throw new Error("SVG 解析失败(文件可能正在写入),等待下一次自动刷新");
+          }
+          const svg = document.importNode(doc.documentElement, true);
+          svg.removeAttribute("width");
+          svg.removeAttribute("height");
+          svg.style.display = "block";
+          svg.style.width = "100%";
+          svg.style.height = "auto";
+          const viewBox = state.session?.view_box;
+          if (viewBox) {
+            elements.canvasFrame.style.aspectRatio = `${viewBox[2]} / ${viewBox[3]}`;
+          }
+          stageShadow.replaceChildren(svg);
+          state.loadedMtime = mtime ?? null;
+          collectElementIndex();
+          // 字体加载完成后文字 bbox 可能微移,重建一次索引
+          document.fonts?.ready.then(() => {
+            if (state.loadedMtime === (mtime ?? null)) collectElementIndex();
+          });
+        }
+
+        function stageSvgRoot() {
+          return stageShadow.querySelector("svg");
+        }
+
+        /* ---------- 命中检测(提交时执行) ---------- */
+
+        function normRect(elRect, rootRect) {
+          return {
+            x: (elRect.left - rootRect.left) / rootRect.width,
+            y: (elRect.top - rootRect.top) / rootRect.height,
+            w: elRect.width / rootRect.width,
+            h: elRect.height / rootRect.height
+          };
+        }
+
+        function intersectArea(a, b) {
+          const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+          const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+          return w > 0 && h > 0 ? w * h : 0;
+        }
+
+        function regionForAnnotation(annotation) {
+          const pad = 0.015;
+          if (annotation.kind === "rect" || annotation.kind === "element") {
+            return { x: annotation.x, y: annotation.y, w: annotation.w, h: annotation.h };
+          }
+          if (annotation.kind === "arrow") {
+            return { x: annotation.x2 - pad, y: annotation.y2 - pad, w: pad * 2, h: pad * 2 };
+          }
+          if (annotation.kind === "freehand") {
+            const xs = annotation.points.map((p) => p.x);
+            const ys = annotation.points.map((p) => p.y);
+            const x = Math.min(...xs);
+            const y = Math.min(...ys);
+            return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+          }
+          return { x: annotation.x - pad, y: annotation.y - pad, w: pad * 2, h: pad * 2 };
+        }
+
+        function ancestorIdChain(element, root) {
+          const ids = [];
+          let node = element;
+          while (node && node !== root) {
+            if (node.id) ids.unshift(node.id);
+            node = node.parentNode;
+          }
+          return ids;
+        }
+
+        function buildHitRecord(element, box, coverage, root) {
+          let tag = element.tagName.toLowerCase();
+          let dPrefix = null;
+          let textContent = (element.textContent || "").replace(/\s+/g, " ").trim();
+          if (tag === "g") {
+            const children = Array.from(element.children).filter((c) => c.tagName !== "defs");
+            const tags = new Set(children.map((c) => c.tagName.toLowerCase()));
+            if (tags.size === 1) tag = [...tags][0];
+            const firstPath = element.querySelector("path");
+            if (firstPath) dPrefix = (firstPath.getAttribute("d") || "").slice(0, 30);
+          } else if (tag === "path") {
+            dPrefix = (element.getAttribute("d") || "").slice(0, 30);
+          }
+          const record = {
+            tag,
+            id: element.id || null,
+            ancestors: ancestorIdChain(element, root),
+            bbox_norm: [box.x, box.y, box.w, box.h].map((v) => Math.round(v * 10000) / 10000),
+            coverage: Math.round(coverage * 100) / 100
+          };
+          if (textContent && tag !== "path") record.text = textContent.slice(0, 200);
+          if (dPrefix) record.d_prefix = dPrefix;
+          return record;
+        }
+
+        function hitTest(region) {
+          const root = stageSvgRoot();
+          if (!root) return { hits: [], texts: [] };
+          const rootRect = root.getBoundingClientRect();
+          if (!rootRect.width || !rootRect.height) return { hits: [], texts: [] };
+
+          const measure = (el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 ? normRect(r, rootRect) : null;
+          };
+
+          // 1. 语义组:带 id 的 <g>,剔除背景级(覆盖画布 >90%),只保留最深的命中
+          const gCandidates = Array.from(root.querySelectorAll("g[id]"));
+          const gHits = [];
+          for (const g of gCandidates) {
+            const box = measure(g);
+            if (!box) continue;
+            const area = box.w * box.h;
+            if (area > 0.9) continue; // figure_1 / axes_1 / patch_1 白底这类容器
+            const overlap = intersectArea(region, box);
+            if (overlap <= 0) continue;
+            gHits.push({ el: g, box, coverage: overlap / area });
+          }
+          const gHitSet = new Set(gHits.map((h) => h.el));
+          const deepest = gHits.filter(
+            (h) => !gHits.some((other) => other.el !== h.el && h.el.contains(other.el))
+          );
+
+          // 2. 落单叶子:不在任何命中语义组内的 text/path/image/use(兼容非 matplotlib SVG)
+          const leafHits = [];
+          for (const el of root.querySelectorAll("text, path, image, use")) {
+            let node = el.parentNode;
+            let covered = false;
+            while (node && node !== root) {
+              if (gHitSet.has(node)) {
+                covered = true;
+                break;
+              }
+              node = node.parentNode;
+            }
+            if (covered) continue;
+            const box = measure(el);
+            if (!box) continue;
+            const area = box.w * box.h;
+            if (area > 0.9) continue;
+            const overlap = intersectArea(region, box);
+            if (overlap <= 0) continue;
+            leafHits.push({ el, box, coverage: overlap / area });
+          }
+
+          const merged = [...deepest, ...leafHits]
+            .map((h) => buildHitRecord(h.el, h.box, h.coverage, root))
+            .sort((a, b) => {
+              const aText = a.tag === "text" || a.text ? 1 : 0;
+              const bText = b.tag === "text" || b.text ? 1 : 0;
+              if (aText !== bText) return bText - aText;
+              return b.coverage - a.coverage;
+            })
+            .slice(0, 10);
+
+          // 3. 选区内全部文字(按阅读序)
+          const texts = [];
+          for (const el of root.querySelectorAll("text")) {
+            const box = measure(el);
+            if (!box || intersectArea(region, box) <= 0) continue;
+            const content = (el.textContent || "").replace(/\s+/g, " ").trim();
+            if (content) texts.push({ content, y: box.y, x: box.x });
+          }
+          texts.sort((a, b) => (Math.abs(a.y - b.y) > 0.01 ? a.y - b.y : a.x - b.x));
+          const seen = new Set();
+          const textList = [];
+          for (const t of texts) {
+            if (!seen.has(t.content)) {
+              seen.add(t.content);
+              textList.push(t.content);
+            }
+          }
+          return { hits: merged, texts: textList };
+        }
+
+        /* ---------- 元素级点选(v2):索引 + pick + 悬停高亮 ---------- */
+
+        function collectElementIndex() {
+          state.elementIndex = [];
+          state.elementById = new Map();
+          const root = stageSvgRoot();
+          if (!root) return;
+          const rootRect = root.getBoundingClientRect();
+          if (!rootRect.width || !rootRect.height) return;
+          const measure = (el) => {
+            const r = el.getBoundingClientRect();
+            return r.width > 0 && r.height > 0 ? normRect(r, rootRect) : null;
+          };
+          const depthOf = (el) => {
+            let depth = 0;
+            let node = el;
+            while (node && node !== root) {
+              depth += 1;
+              node = node.parentNode;
+            }
+            return depth;
+          };
+          // 候选语义与 hitTest 一致:g[id](剔背景级)+ 落单叶子
+          const groups = [];
+          for (const g of root.querySelectorAll("g[id]")) {
+            const box = measure(g);
+            if (!box) continue;
+            const area = box.w * box.h;
+            if (area > 0.9) continue;
+            groups.push({ el: g, box, area, depth: depthOf(g) });
+          }
+          const groupSet = new Set(groups.map((c) => c.el));
+          const leaves = [];
+          for (const el of root.querySelectorAll("text, path, image, use")) {
+            let node = el.parentNode;
+            let covered = false;
+            while (node && node !== root) {
+              if (groupSet.has(node)) {
+                covered = true;
+                break;
+              }
+              node = node.parentNode;
+            }
+            if (covered) continue;
+            const box = measure(el);
+            if (!box) continue;
+            const area = box.w * box.h;
+            if (area > 0.9) continue;
+            leaves.push({ el, box, area, depth: depthOf(el) });
+          }
+          state.elementIndex = [...groups, ...leaves].map((c) => ({
+            ...c,
+            record: buildHitRecord(c.el, c.box, 1, root)
+          }));
+          for (const c of state.elementIndex) {
+            if (c.record.id) state.elementById.set(c.record.id, c);
+          }
+        }
+
+        function pickElementAt(point) {
+          const pad = 0.004; // 细线宽容
+          let best = null;
+          for (const c of state.elementIndex) {
+            const b = c.box;
+            if (point.x < b.x - pad || point.x > b.x + b.w + pad) continue;
+            if (point.y < b.y - pad || point.y > b.y + b.h + pad) continue;
+            if (!best || c.area < best.area - 1e-9 || (Math.abs(c.area - best.area) <= 1e-9 && c.depth > best.depth)) {
+              best = c;
+            }
+          }
+          // 最小命中仍是半图级容器 → 视为未命中(整片区域诉求走矩形工具)
+          if (best && best.area > 0.5) return null;
+          return best;
+        }
+
+        function setPickedElement(candidate) {
+          state.pickedElement = candidate
+            ? { el: candidate.el, box: { ...candidate.box }, record: JSON.parse(JSON.stringify(candidate.record)) }
+            : null;
+          state.selectedId = null;
+          renderAll();
+          if (candidate) window.setTimeout(() => elements.annotationNote.focus(), 0);
+        }
+
+        function hoverBoxRect(box, className) {
+          const rect = makeSvgElement("rect", {
+            x: box.x * 1000,
+            y: box.y * 1000,
+            width: box.w * 1000,
+            height: box.h * 1000,
+            rx: 2,
+            "vector-effect": "non-scaling-stroke"
+          });
+          rect.setAttribute("class", className);
+          return rect;
+        }
+
+        function positionHoverChip(candidate) {
+          const record = candidate.record ?? candidate;
+          const label = (record.id || record.tag) + (record.text ? ` · “${record.text.slice(0, 60)}”` : "");
+          elements.hoverChip.textContent = label;
+          elements.hoverChip.hidden = false;
+          const box = candidate.box;
+          elements.hoverChip.style.left = `${box.x * 100}%`;
+          if (box.y < 0.06) {
+            elements.hoverChip.style.top = `${(box.y + box.h) * 100}%`;
+            elements.hoverChip.style.transform = "translateY(4px)";
+          } else {
+            elements.hoverChip.style.top = `${box.y * 100}%`;
+            elements.hoverChip.style.transform = "translateY(calc(-100% - 4px))";
+          }
+        }
+
+        function renderHoverLayer() {
+          elements.hoverLayer.replaceChildren();
+          elements.hoverChip.hidden = true;
+          const picked = state.pickedElement;
+          if (picked) {
+            elements.hoverLayer.appendChild(hoverBoxRect(picked.box, "picked-box"));
+          }
+          const hover = state.hoverElement;
+          if (hover && (!picked || hover.el !== picked.el)) {
+            elements.hoverLayer.appendChild(hoverBoxRect(hover.box, "hover-box"));
+            positionHoverChip(hover);
+          }
+        }
+
+        let hoverRaf = 0;
+        function clearHover() {
+          if (!state.hoverElement) return;
+          state.hoverElement = null;
+          renderHoverLayer();
+        }
+
+        function hoverMove(event) {
+          if (state.tool !== "select" || state.drawing || state.handStart || !state.session) {
+            clearHover();
+            return;
+          }
+          if (event.target.closest?.("[data-ann-id]")) {
+            clearHover();
+            return;
+          }
+          const point = pointFromEvent(event);
+          if (hoverRaf) return;
+          hoverRaf = window.requestAnimationFrame(() => {
+            hoverRaf = 0;
+            const candidate = pickElementAt(point);
+            if ((candidate?.el ?? null) !== (state.hoverElement?.el ?? null)) {
+              state.hoverElement = candidate;
+              renderHoverLayer();
+            }
+          });
+        }
+
+        function promotePickedToAnnotation(note) {
+          const picked = state.pickedElement;
+          if (!picked) return;
+          const box = picked.box;
+          const annotation = newAnnotation("element", {
+            x: box.x,
+            y: box.y,
+            w: box.w,
+            h: box.h,
+            target: picked.record
+          });
+          annotation.note = note;
+          annotation.color = elements.annotationColor.value.toUpperCase();
+          state.pickedElement = null;
+          state.editorSnapshot = null; // commitAnnotations 已记录转正前状态,避免 blur 再压一份
+          commitAnnotations([...state.annotations, annotation], annotation.id);
+        }
+
+        /* ---------- 提交 ---------- */
+
+        function geometryNorm(annotation) {
+          if (annotation.kind === "rect" || annotation.kind === "element") {
+            return { x: annotation.x, y: annotation.y, w: annotation.w, h: annotation.h };
+          }
+          if (annotation.kind === "arrow") {
+            return { x1: annotation.x1, y1: annotation.y1, x2: annotation.x2, y2: annotation.y2 };
+          }
+          if (annotation.kind === "freehand") {
+            return { points: annotation.points.map((p) => [p.x, p.y]) };
+          }
+          return { x: annotation.x, y: annotation.y };
+        }
+
+        function buildSubmission(annotation) {
+          const region = regionForAnnotation(annotation);
+          const { hits, texts } = hitTest(region);
+          const record = {
+            number: state.annotations.indexOf(annotation) + 1,
+            kind: annotation.kind,
+            note: annotation.note || "",
+            color: annotation.color,
+            geometry_norm: geometryNorm(annotation),
+            hits,
+            texts_in_region: texts
+          };
+          if (annotation.kind === "text") record.text = annotation.text || "";
+          if (annotation.kind === "element" && annotation.target) {
+            record.target = JSON.parse(JSON.stringify(annotation.target));
+          }
+          return record;
+        }
+
+        async function submit() {
+          const drafts = state.annotations.filter((item) => !item.submitted);
+          if (!drafts.length || state.saving || !state.session) return;
+          state.saving = true;
+          renderControls();
+          setStatus("正在提交批注…");
+          try {
+            const payload = drafts.map((item) => buildSubmission(item));
+            const response = await fetch("/api/submit", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ annotations: payload })
+            });
+            const output = await response.json();
+            if (!response.ok) throw new Error(output.error || "提交失败");
+            drafts.forEach((item) => {
+              item.submitted = true;
+            });
+            state.saving = false;
+            state.selectedId = null;
+            state.history = [];
+            state.future = [];
+            setStatus(`已提交 ${drafts.length} 条批注给 Claude(批次 #${output.batch_id})`, "ok");
+            renderAll();
+          } catch (error) {
+            state.saving = false;
+            setStatus(error.message || String(error), "error");
+            renderControls();
+          }
+        }
+
+        /* ---------- SSE:session / reload / status ---------- */
+
+        async function handleSession(session) {
+          const changed = !state.session || state.session.svg_path !== session.svg_path;
+          state.session = session;
+          elements.filename.textContent = session.title || session.filename || "SVG 批注";
+          elements.filepath.textContent =
+            (session.svg_path || "") + (session.source_script ? `  ⇠ ${session.source_script}` : "");
+          try {
+            if (changed) {
+              state.annotations = [];
+              state.history = [];
+              state.future = [];
+              state.selectedId = null;
+              state.pickedElement = null;
+              state.hoverElement = null;
+              await loadSvg(session.svg_mtime);
+              elements.emptyState.hidden = true;
+              setStatus("已载入,可开始批注", "ok");
+              renderAll();
+            } else if (session.svg_mtime !== state.loadedMtime) {
+              await handleReload({ svg_mtime: session.svg_mtime });
+            }
+          } catch (error) {
+            setStatus(error.message || String(error), "error");
+          }
+        }
+
+        async function handleReload(data) {
+          const keep = { left: elements.viewport.scrollLeft, top: elements.viewport.scrollTop };
+          try {
+            await loadSvg(data.svg_mtime);
+          } catch (error) {
+            setStatus(error.message || String(error), "error");
+            return;
+          }
+          elements.viewport.scrollLeft = keep.left;
+          elements.viewport.scrollTop = keep.top;
+          // 图刷新后旧 DOM 引用作废:按 id 在新索引里重解析被点选元素
+          state.hoverElement = null;
+          if (state.pickedElement) {
+            const candidate = state.pickedElement.record.id
+              ? state.elementById.get(state.pickedElement.record.id)
+              : null;
+            state.pickedElement = candidate
+              ? { el: candidate.el, box: { ...candidate.box }, record: JSON.parse(JSON.stringify(candidate.record)) }
+              : null;
+          }
+          // Claude 已改完 → 清除半透明的已提交批注;未提交草稿保留
+          const before = state.annotations.length;
+          state.annotations = state.annotations.filter((item) => !item.submitted);
+          if (state.annotations.length !== before) {
+            state.history = [];
+            state.future = [];
+            if (!selectedAnnotation()) state.selectedId = null;
+          }
+          setStatus(
+            state.annotations.length !== before ? "图已更新,已清除已提交的批注" : "图已更新",
+            "ok"
+          );
+          renderAll();
+        }
+
+        let sseFailures = 0;
+        function connectEvents() {
+          const source = new EventSource("/api/events");
+          source.onopen = () => {
+            sseFailures = 0;
+          };
+          source.addEventListener("session", (event) => {
+            handleSession(JSON.parse(event.data));
+          });
+          source.addEventListener("reload", (event) => {
+            handleReload(JSON.parse(event.data));
+          });
+          source.addEventListener("status", (event) => {
+            setStatus(JSON.parse(event.data).message);
+          });
+          source.onerror = () => {
+            sseFailures += 1;
+            if (sseFailures >= 5) {
+              setStatus("与 MCP 服务断开,请在 Claude 里重新调用 open_svg", "error");
+            }
+          };
+        }
+
+        /* ---------- 交互(与母本一致) ---------- */
+
+        function pointFromEvent(event) {
+          const bounds = elements.overlay.getBoundingClientRect();
+          return {
+            x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+            y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height))
+          };
+        }
+
+        function newAnnotation(kind, values) {
+          return {
+            id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            kind,
+            note: "",
+            color: "#FF3B30",
+            createdAt: new Date().toISOString(),
+            ...values
+          };
+        }
+
+        function startDrawing(event) {
+          if (!state.session || event.button !== 0) return;
+          const point = pointFromEvent(event);
+
+          if (state.tool === "select") {
+            const group = event.target.closest?.("[data-ann-id]");
+            if (group) {
+              state.selectedId = group.dataset.annId;
+              state.pickedElement = null;
+              renderAll();
+              return;
+            }
+            setPickedElement(pickElementAt(point)); // 未命中元素时即清空选择
+            return;
+          }
+
+          if (state.tool === "hand") {
+            state.handStart = {
+              x: event.clientX,
+              y: event.clientY,
+              left: elements.viewport.scrollLeft,
+              top: elements.viewport.scrollTop
+            };
+            elements.canvasFrame.dataset.drawing = "true";
+            elements.overlay.setPointerCapture(event.pointerId);
+            return;
+          }
+
+          let annotation;
+          if (state.tool === "rect") {
+            annotation = newAnnotation("rect", { x: point.x, y: point.y, w: 0, h: 0 });
+          } else if (state.tool === "arrow") {
+            annotation = newAnnotation("arrow", {
+              x1: point.x,
+              y1: point.y,
+              x2: point.x,
+              y2: point.y
+            });
+          } else if (state.tool === "freehand") {
+            annotation = newAnnotation("freehand", { points: [point] });
+          } else if (state.tool === "text") {
+            annotation = newAnnotation("text", { x: point.x, y: point.y, text: "文字" });
+          }
+
+          if (!annotation) return;
+          state.drawing = { start: point, annotation };
+          elements.canvasFrame.dataset.drawing = "true";
+          elements.overlay.setPointerCapture(event.pointerId);
+          renderOverlay();
+          event.preventDefault();
+        }
+
+        function moveDrawing(event) {
+          if (state.handStart) {
+            elements.viewport.scrollLeft = state.handStart.left - (event.clientX - state.handStart.x);
+            elements.viewport.scrollTop = state.handStart.top - (event.clientY - state.handStart.y);
+            return;
+          }
+          if (!state.drawing) return;
+          const point = pointFromEvent(event);
+          const { start, annotation } = state.drawing;
+
+          if (annotation.kind === "rect") {
+            annotation.x = Math.min(start.x, point.x);
+            annotation.y = Math.min(start.y, point.y);
+            annotation.w = Math.abs(point.x - start.x);
+            annotation.h = Math.abs(point.y - start.y);
+          } else if (annotation.kind === "arrow") {
+            annotation.x2 = point.x;
+            annotation.y2 = point.y;
+          } else if (annotation.kind === "freehand") {
+            const previous = annotation.points.at(-1);
+            if (Math.hypot(point.x - previous.x, point.y - previous.y) > 0.002) {
+              annotation.points.push(point);
+            }
+          }
+          renderOverlay();
+        }
+
+        function finishDrawing(event) {
+          if (state.handStart) {
+            state.handStart = null;
+            elements.canvasFrame.dataset.drawing = "false";
+            if (elements.overlay.hasPointerCapture(event.pointerId)) {
+              elements.overlay.releasePointerCapture(event.pointerId);
+            }
+            return;
+          }
+          if (!state.drawing) return;
+          const annotation = state.drawing.annotation;
+          state.drawing = null;
+          elements.canvasFrame.dataset.drawing = "false";
+          if (elements.overlay.hasPointerCapture(event.pointerId)) {
+            elements.overlay.releasePointerCapture(event.pointerId);
+          }
+
+          const valid =
+            annotation.kind === "rect"
+              ? annotation.w >= 0.005 && annotation.h >= 0.005
+              : annotation.kind === "arrow"
+                ? Math.hypot(annotation.x2 - annotation.x1, annotation.y2 - annotation.y1) >= 0.005
+                : annotation.kind === "freehand"
+                  ? annotation.points.length >= 2
+                  : true;
+          if (!valid) {
+            renderOverlay();
+            return;
+          }
+
+          commitAnnotations([...state.annotations, annotation], annotation.id);
+          setTool("select");
+          window.setTimeout(() => elements.annotationNote.focus(), 0);
+        }
+
+        function undo() {
+          if (!state.history.length) return;
+          state.future.push(cloneAnnotations());
+          state.annotations = state.history.pop();
+          if (!selectedAnnotation()) state.selectedId = null;
+          markDirty();
+          renderAll();
+        }
+
+        function redo() {
+          if (!state.future.length) return;
+          state.history.push(cloneAnnotations());
+          state.annotations = state.future.pop();
+          if (!selectedAnnotation()) state.selectedId = null;
+          markDirty();
+          renderAll();
+        }
+
+        function deleteSelected() {
+          if (!state.selectedId) {
+            if (state.pickedElement) setPickedElement(null); // 临时态 → 取消选择
+            return;
+          }
+          const next = state.annotations.filter((item) => item.id !== state.selectedId);
+          commitAnnotations(next, null);
+        }
+
+        document.querySelectorAll("button[data-tool]").forEach((button) => {
+          button.addEventListener("click", () => setTool(button.dataset.tool));
+        });
+        elements.overlay.addEventListener("pointerdown", startDrawing);
+        elements.overlay.addEventListener("pointermove", moveDrawing);
+        elements.overlay.addEventListener("pointermove", hoverMove);
+        elements.overlay.addEventListener("pointerleave", clearHover);
+        elements.overlay.addEventListener("pointerup", finishDrawing);
+        elements.overlay.addEventListener("pointercancel", finishDrawing);
+        elements.undoButton.addEventListener("click", undo);
+        elements.redoButton.addEventListener("click", redo);
+        elements.deleteButton.addEventListener("click", deleteSelected);
+        elements.saveButton.addEventListener("click", submit);
+        elements.zoom.addEventListener("input", () => {
+          state.zoom = Number(elements.zoom.value);
+          renderControls();
+        });
+        elements.fit.addEventListener("click", () => {
+          state.zoom = 100;
+          elements.viewport.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+          renderControls();
+        });
+
+        elements.annotationNote.addEventListener("focus", () => {
+          state.editorSnapshot = cloneAnnotations();
+        });
+        elements.annotationNote.addEventListener("input", () => {
+          if (state.pickedElement && !selectedAnnotation()) {
+            // 检查器临时态:首次输入非空 → 转正为 element 批注
+            const value = elements.annotationNote.value;
+            if (value.trim()) promotePickedToAnnotation(value);
+            return;
+          }
+          updateSelected({ note: elements.annotationNote.value });
+        });
+        elements.annotationNote.addEventListener("blur", () => {
+          if (state.editorSnapshot) {
+            state.history.push(state.editorSnapshot);
+            state.future = [];
+            state.editorSnapshot = null;
+          }
+          renderSidebar();
+          renderControls();
+        });
+        elements.annotationText.addEventListener("focus", () => {
+          state.editorSnapshot = cloneAnnotations();
+        });
+        elements.annotationText.addEventListener("input", () => {
+          updateSelected({ text: elements.annotationText.value || "文字" });
+        });
+        elements.annotationText.addEventListener("blur", () => {
+          if (state.editorSnapshot) {
+            state.history.push(state.editorSnapshot);
+            state.future = [];
+            state.editorSnapshot = null;
+          }
+          renderSidebar();
+          renderControls();
+        });
+        elements.annotationColor.addEventListener("focus", () => {
+          state.editorSnapshot = cloneAnnotations();
+        });
+        elements.annotationColor.addEventListener("input", () => {
+          updateSelected({ color: elements.annotationColor.value.toUpperCase() });
+        });
+        elements.annotationColor.addEventListener("change", () => {
+          if (state.editorSnapshot) {
+            state.history.push(state.editorSnapshot);
+            state.future = [];
+            state.editorSnapshot = null;
+          }
+          renderSidebar();
+          renderControls();
+        });
+
+        window.addEventListener("keydown", (event) => {
+          const tag = event.target?.tagName;
+          const typing = tag === "INPUT" || tag === "TEXTAREA";
+          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+            event.preventDefault();
+            if (event.shiftKey) redo();
+            else undo();
+            return;
+          }
+          if (event.key === "Escape" && typing) {
+            event.target.blur?.();
+            if (state.pickedElement && !selectedAnnotation()) {
+              state.pickedElement = null;
+              renderAll();
+            }
+            return;
+          }
+          if (typing) return;
+          const shortcuts = {
+            v: "select",
+            h: "hand",
+            r: "rect",
+            a: "arrow",
+            p: "freehand",
+            t: "text"
+          };
+          const tool = shortcuts[event.key.toLowerCase()];
+          if (tool) setTool(tool);
+          if (event.key === "Delete" || event.key === "Backspace") deleteSelected();
+          if (event.key === "Escape") {
+            state.drawing = null;
+            state.selectedId = null;
+            state.pickedElement = null;
+            state.hoverElement = null;
+            setTool("select");
+            renderAll();
+          }
+        });
+
+        /* 自动化测试钩子:?autotest=x,y,w,h 会在载入后画一个矩形批注并提交 */
+        async function autotestIfRequested() {
+          const spec = new URLSearchParams(location.search).get("autotest");
+          if (!spec) return;
+          const [x, y, w, h] = spec.split(",").map(Number);
+          for (let i = 0; i < 100 && !stageSvgRoot(); i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          if (!stageSvgRoot()) {
+            setStatus("autotest: SVG 未载入", "error");
+            return;
+          }
+          const annotation = newAnnotation("rect", { x, y, w, h });
+          annotation.note = "autotest 区域批注";
+          state.annotations.push(annotation);
+          renderAll();
+          await submit();
+          document.title = "AUTOTEST-DONE";
+        }
+
+        /* 自动化测试钩子:?autotest_click=x,y 点选元素并转正提交;
+           加 &autotest_stage=pick 则只点选高亮(截图检查器用) */
+        async function autotestClickIfRequested() {
+          const params = new URLSearchParams(location.search);
+          const spec = params.get("autotest_click");
+          if (!spec) return;
+          const [x, y] = spec.split(",").map(Number);
+          for (let i = 0; i < 100 && !state.elementIndex.length; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          const candidate = pickElementAt({ x, y });
+          if (!candidate) {
+            setStatus("autotest_click: 未命中元素", "error");
+            document.title = "AUTOTEST-MISS";
+            return;
+          }
+          setPickedElement(candidate);
+          if (params.get("autotest_stage") === "pick") {
+            document.title = "AUTOTEST-PICKED";
+            return;
+          }
+          promotePickedToAnnotation("autotest 元素批注");
+          renderAll();
+          await submit();
+          document.title = "AUTOTEST-DONE";
+        }
+
+        /* 初始会话用一次性 fetch 引导(SSE 只负责后续推送,也便于无 SSE 调试) */
+        async function bootstrapSession() {
+          try {
+            const response = await fetch("/api/session", { cache: "no-store" });
+            if (response.ok) await handleSession(await response.json());
+          } catch {
+            /* 服务未就绪时留在空状态,等 SSE 快照 */
+          }
+        }
+
+        renderAll();
+        bootstrapSession().then(() => {
+          if (!new URLSearchParams(location.search).get("nosse")) connectEvents();
+          autotestIfRequested();
+          autotestClickIfRequested();
+        });
+      })();
+    </script>
+  </body>
+</html>

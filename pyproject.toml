@@ -1,0 +1,18 @@
+[project]
+name = "svg-annotate-mcp"
+version = "0.1.0"
+description = "在浏览器里圈选批注 SVG 论文图,批注回传 Claude 修改源文件的 MCP 插件"
+requires-python = ">=3.12"
+dependencies = ["mcp>=2,<3"]
+
+[project.scripts]
+svg-annotate-mcp = "svg_annotate_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/svg_annotate_mcp"]
+# 注:曾配清华 pypi 镜像,但本机 Clash 在系统层拦国内站(TLS InvalidContentType),
+# 默认 PyPI 走代理反而通畅,故不配镜像。
