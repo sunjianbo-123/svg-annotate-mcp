@@ -132,8 +132,14 @@ async def wait_for_annotations(timeout_s: int = 120) -> dict:
     若仍在等待用户批注,应立即再次调用本工具继续等待,直到拿到
     status="submitted" 或用户在对话里明确说不批注了。
     返回的每条批注含:kind(rect/arrow/freehand/text)、note(用户文字)、
-    geometry_svg(viewBox 坐标)、hits(命中的 SVG 元素:id/文字/祖先链,
+    geometry_svg(viewBox 坐标)、hits(命中的 SVG 元素:id/文字/层级链,
     用于在 SVG 源文件或生成脚本中定位)、texts_in_region(选区内的文字)。
+    批注可含 images(用户粘贴在批注里的截图,已存为本地文件):
+    动手改图前,先用 Read 工具逐个打开 images[].path 查看截图内容,
+    截图与 note 文字是同一条修改意见的图文上下文。
+    批次按提交顺序排队(FIFO),快速连提不丢批:返回的 pending 字段
+    表示队列中还有几批在等——pending>0 时处理完本批应立即再调本工具,
+    会立刻返回下一批。
     """
     if STATE.get_session() is None:
         return {"status": "no_session", "message": "还没有打开任何 SVG,请先调用 open_svg"}
@@ -162,9 +168,11 @@ async def wait_for_annotations(timeout_s: int = 120) -> dict:
 
 @mcp.tool()
 async def get_annotations() -> dict:
-    """非阻塞地取最近一批已提交的批注(wait_for_annotations 的兜底)。
+    """非阻塞地取一批已提交的批注(wait_for_annotations 的兜底)。
 
-    用于超时链中断后恢复现场;没有批注时返回 status="empty"。
+    用于超时链中断后恢复现场:队列有货按提交顺序取走一批(pending
+    表示剩余);队列空则重读最后取走的那批(带 already_taken=true,
+    表示该批此前已交付过,谨防重复施工);从未有批注返回 status="empty"。
     """
     session = STATE.get_session()
     if session is None:

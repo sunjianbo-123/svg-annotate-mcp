@@ -9,15 +9,75 @@
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
 import queue
+import tempfile
 import threading
 import time
+import uuid
+from collections import deque
+from pathlib import Path
 
 log = logging.getLogger("svg-annotate")
 
 WATCH_INTERVAL_S = 0.5
+PASTE_DIR = Path(tempfile.gettempdir()) / "svg_annotate_pastes"
+MAX_IMAGES_PER_ANNOTATION = 3
+MAX_PENDING_BATCHES = 50
+
+
+def persist_annotation_images(ann: dict, batch_id: int, ann_index: int) -> None:
+    """把批注里粘贴的截图(data URL)落盘为文件,payload 中只留路径。
+
+    回传给 Claude 的批注绝不携带 base64(会撑爆工具结果);Claude 用 Read
+    打开 images[].path 即可看图。解码/写盘失败的条目跳过并告警,不阻塞
+    提交;有丢弃时在批注上留 images_dropped 计数,让 Claude 知道有截图缺失。
+    文件名带 uuid 成分:跨会话/换图后 batch 计数重置也绝不互相覆盖。
+    """
+    images = ann.get("images")
+    if not isinstance(images, list) or not images:
+        ann.pop("images", None)
+        return
+    saved: list[dict] = []
+    for i, img in enumerate(images[:MAX_IMAGES_PER_ANNOTATION]):
+        if not isinstance(img, dict):
+            continue
+        data_url = img.get("data_url")
+        if not isinstance(data_url, str) or "," not in data_url:
+            continue
+        header, b64 = data_url.split(",", 1)
+        try:
+            raw = base64.b64decode(b64, validate=True)
+        except Exception:
+            log.warning("批注 #%d 第 %d 张截图 base64 解码失败,已跳过", ann_index, i + 1)
+            continue
+        if not raw:
+            log.warning("批注 #%d 第 %d 张截图为空负载,已跳过", ann_index, i + 1)
+            continue
+        ext = ".jpg" if "image/jpeg" in header else ".png"
+        try:
+            PASTE_DIR.mkdir(parents=True, exist_ok=True)
+            path = PASTE_DIR / f"batch{batch_id}_ann{ann_index}_{i + 1}_{uuid.uuid4().hex[:8]}{ext}"
+            path.write_bytes(raw)
+        except OSError as e:
+            log.warning("批注截图写盘失败(%s),已跳过", e)
+            continue
+        saved.append({
+            "path": str(path),
+            "media_type": img.get("media_type") or ("image/jpeg" if ext == ".jpg" else "image/png"),
+            "w": img.get("w"),
+            "h": img.get("h"),
+            "bytes": len(raw),
+        })
+    dropped = len(images) - len(saved)
+    if dropped > 0:
+        ann["images_dropped"] = dropped
+    if saved:
+        ann["images"] = saved
+    else:
+        ann.pop("images", None)
 
 
 def _round2(v: float) -> float:
@@ -62,8 +122,8 @@ class AppState:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self.session: dict | None = None
-        self.latest_batch: dict | None = None
-        self._consumed_batch_id = 0
+        self._batch_queue: deque[dict] = deque()
+        self._last_taken: dict | None = None
         self._batch_counter = 0
         self._sse_clients: dict[int, queue.Queue] = {}
         self._sse_counter = 0
@@ -75,8 +135,9 @@ class AppState:
     def set_session(self, session: dict) -> None:
         with self._lock:
             self.session = session
-            self.latest_batch = None
-            self._consumed_batch_id = 0
+            # 换图后旧图的批注坐标/锚点全部作废,清空收件队列
+            self._batch_queue.clear()
+            self._last_taken = None
             self._batch_counter = 0
 
     def get_session(self) -> dict | None:
@@ -120,7 +181,8 @@ class AppState:
             view_box = self.session["view_box"]
             self._batch_counter += 1
             batch_id = self._batch_counter
-        for ann in annotations:
+        for ann_index, ann in enumerate(annotations, start=1):
+            persist_annotation_images(ann, batch_id, ann_index)
             if isinstance(ann.get("geometry_norm"), dict):
                 ann["geometry_svg"] = norm_to_svg(ann["geometry_norm"], view_box)
             for hit in ann.get("hits", []) or []:
@@ -138,23 +200,33 @@ class AppState:
             "annotations": annotations,
         }
         with self._lock:
-            self.latest_batch = batch
+            # FIFO 队列:快速连提不覆盖、不丢批(旧实现单槽 latest_batch 会被顶掉)
+            self._batch_queue.append(batch)
+            if len(self._batch_queue) > MAX_PENDING_BATCHES:
+                dropped = self._batch_queue.popleft()
+                log.warning("批注队列超过 %d 批,丢弃最旧批次 #%d",
+                            MAX_PENDING_BATCHES, dropped["batch_id"])
         log.info("收到批注批次 #%d(%d 条)", batch_id, len(annotations))
         return batch
 
     def take_new_batch(self) -> dict | None:
-        """有未消费的新批次则标记消费并返回,否则 None。"""
+        """按提交顺序取走一批(FIFO);带 pending=队列剩余批数,无待取批次返回 None。"""
         with self._lock:
-            if self.latest_batch and self.latest_batch["batch_id"] > self._consumed_batch_id:
-                self._consumed_batch_id = self.latest_batch["batch_id"]
-                return dict(self.latest_batch)
-            return None
+            if not self._batch_queue:
+                return None
+            batch = self._batch_queue.popleft()
+            self._last_taken = batch
+            return {**batch, "pending": len(self._batch_queue)}
 
     def peek_latest_batch(self) -> dict | None:
+        """兜底恢复:队列有货按 FIFO 取走一批;队列空则重读最后取走的那批。"""
         with self._lock:
-            if self.latest_batch:
-                self._consumed_batch_id = self.latest_batch["batch_id"]
-                return dict(self.latest_batch)
+            if self._batch_queue:
+                batch = self._batch_queue.popleft()
+                self._last_taken = batch
+                return {**batch, "pending": len(self._batch_queue)}
+            if self._last_taken:
+                return {**self._last_taken, "pending": 0, "already_taken": True}
             return None
 
     # ---------- 文件 watcher ----------

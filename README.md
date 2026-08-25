@@ -26,7 +26,15 @@ claude mcp add --scope user svg-annotate -- \
 
 ## 元素级点选(v2)
 
-默认「选择」工具下,悬停即实时高亮光标下的语义元素(matplotlib 的 `text_N`/`line2d_N`/`legend_N` 等 `g[id]` 组,取最小面积命中,标签片显示 id+文字);点击进入**元素检查器**(侧栏显示 id、逐字文字、祖先面包屑——点面包屑可改选父组,如 `text_54 → legend_1`);**在「修改说明」里输入内容才生成批注**(纯点击=检查器,不产生垃圾批注),Esc 或「取消选择」退出。元素批注在图上是虚线框+编号。
+默认「选择」工具下,悬停即实时高亮光标下的语义元素(matplotlib 的 `text_N`/`line2d_N`/`legend_N` 等 `g[id]` 组,取最小面积命中,标签片显示 id+文字);点击进入**元素检查器**(侧栏显示 id、逐字文字、层级路径(breadcrumb)——点任意一级可改选父组,如 `text_54 → legend_1`);**在「修改说明」里输入内容才生成批注**(纯点击=检查器,不产生垃圾批注),Esc 或「取消选择」退出。元素批注在图上是虚线框+编号。
+
+## 批注内粘贴截图(v3)
+
+在「修改说明」输入框里 **⌘V 直接粘贴剪贴板图片**(截图、参考图均可),textarea 下方出现缩略图(可 × 删除),每条批注最多 3 张;过大图片自动压缩(最长边 2000px,超 2.5MB 转 JPEG)。元素检查器临时态下粘贴截图与输入文字等价,同样触发转正成批注。提交时服务端把图片落盘到 `<系统临时目录>/svg_annotate_pastes/`,**回传给 Claude 的 payload 只含文件路径不含 base64**——Claude 用 Read 工具打开 `images[].path` 即可看图,截图与 note 文字构成同一条修改意见的图文上下文。
+
+## 批次队列(v3.1)
+
+提交按 **FIFO 排队**,快速连提不覆盖、不丢批(旧实现单槽会被顶掉);`wait_for_annotations` 返回的 `pending` 字段 = 队列剩余批数,>0 时处理完本批立即再调即取下一批。`get_annotations` 兜底:队列空时重读最后取走的一批(带 `already_taken: true`)。换图(open_svg 新文件)清空队列。
 
 ## 批注回传结构(设计给 Claude 定位用)
 
@@ -35,8 +43,9 @@ claude mcp add --scope user svg-annotate -- \
 - `kind`(element/rect/arrow/freehand/text)、`note`(用户的修改说明)、`number`(画布上的编号);
 - `kind:"element"` 时带 **`target`**:被点选元素的 `tag`/`id`/`text`(逐字)/`ancestors`/`d_prefix`/`bbox_svg`——**这是最强定位锚,优先用它**(id 或 text 直接 grep 生成脚本/SVG);
 - `geometry_norm`(0-1)与 `geometry_svg`(viewBox 坐标,服务端换算好);
-- `hits[]`:选区命中的 SVG 元素,每个含 `tag` / `id`(matplotlib 的 `text_N`/`line2d_N` 等语义组)/ `text`(元素文字,逐字)/ `ancestors`(祖先 id 链,如 `["figure_1","legend_1","text_54"]`)/ `bbox_svg` / `coverage` / `d_prefix`(path 的 `d` 前 30 字符,直接改 SVG 时的 grep 锚)。已做去噪:背景容器剔除、语义组优先(不重复报组内叶子)、每条上限 10;
-- `texts_in_region`:选区内全部文字(阅读序、去重)——在生成脚本里 grep 定位的第一线索。
+- `hits[]`:选区命中的 SVG 元素,每个含 `tag` / `id`(matplotlib 的 `text_N`/`line2d_N` 等语义组)/ `text`(元素文字,逐字)/ `ancestors`(层级 id 链,由外到内,如 `["figure_1","legend_1","text_54"]`)/ `bbox_svg` / `coverage` / `d_prefix`(path 的 `d` 前 30 字符,直接改 SVG 时的 grep 锚)。已做去噪:背景容器剔除、语义组优先(不重复报组内叶子)、每条上限 10;
+- `texts_in_region`:选区内全部文字(阅读序、去重)——在生成脚本里 grep 定位的第一线索;
+- `images`(可选):用户粘贴在批注里的截图,`[{path, media_type, w, h, bytes}]`——已落盘为本地文件,**用 Read 打开 `path` 看图**,不含 base64。
 
 **改哪里由 Claude 判断**:批注带回 `source_script` 时优先改脚本再重跑(改 SVG 产物会被下次重跑覆盖);没有脚本的图直接改 SVG 文件。页面对修改方式不做假设,只认文件 mtime 变化(500ms 轮询、双拍稳定、`</svg>` 尾校验防写一半)。
 

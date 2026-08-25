@@ -465,6 +465,53 @@
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 15%, transparent);
       }
 
+      .note-images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .note-images[hidden] {
+        display: none;
+      }
+
+      .note-thumb {
+        position: relative;
+        width: 66px;
+        height: 50px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--panel);
+      }
+
+      .note-thumb img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .note-thumb button {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 16px;
+        height: 16px;
+        padding: 0;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .note-thumb button:hover {
+        background: rgba(220, 50, 40, 0.9);
+      }
+
       .editor-actions {
         display: flex;
         align-items: center;
@@ -716,7 +763,7 @@
             <div class="picker-id" id="picker-id"></div>
             <div class="picker-text" id="picker-text" hidden></div>
             <div class="picker-crumbs" id="picker-crumbs"></div>
-            <div class="picker-hint">在下方「修改说明」输入内容即为该元素创建批注;点面包屑可改选父组;Esc 或「取消选择」退出。</div>
+            <div class="picker-hint">在下方「修改说明」输入文字或粘贴截图,即为该元素创建批注;点层级路径可改选父组;Esc 或「取消选择」退出。</div>
           </div>
           <div class="editor" id="editor" hidden>
             <div class="field" id="text-field" hidden>
@@ -724,8 +771,9 @@
               <input id="annotation-text" type="text" maxlength="500" />
             </div>
             <div class="field">
-              <label for="annotation-note">修改说明</label>
+              <label for="annotation-note">修改说明 · 可 ⌘V 粘贴截图</label>
               <textarea id="annotation-note" maxlength="4000" placeholder="例如：将标题改为 Arial 8 pt，并与左侧面板对齐。"></textarea>
+              <div class="note-images" id="note-images" hidden></div>
             </div>
             <div class="editor-actions">
               <label class="color-control">颜色 <input id="annotation-color" type="color" value="#ff3b30" /></label>
@@ -766,6 +814,7 @@
           textField: $("#text-field"),
           annotationText: $("#annotation-text"),
           annotationNote: $("#annotation-note"),
+          noteImages: $("#note-images"),
           annotationColor: $("#annotation-color"),
           deleteButton: $("#delete"),
           saveButton: $("#save"),
@@ -787,6 +836,7 @@
           history: [],
           future: [],
           saving: false,
+          attaching: 0,
           handStart: null,
           editorSnapshot: null,
           elementIndex: [],
@@ -1013,6 +1063,7 @@
               kind.textContent =
                 annotationKindLabel(annotation.kind) +
                 (annotation.target?.id ? ` · ${annotation.target.id}` : "") +
+                (annotation.images?.length ? ` · 📷${annotation.images.length}` : "") +
                 (annotation.submitted ? " · 已提交" : "");
               const note = document.createElement("div");
               note.className = "comment-note";
@@ -1038,6 +1089,7 @@
             elements.textField.hidden = true;
             if (document.activeElement !== elements.annotationNote) elements.annotationNote.value = "";
             elements.deleteButton.textContent = "取消选择";
+            renderNoteImages(null);
             return;
           }
           elements.deleteButton.textContent = "删除批注";
@@ -1047,6 +1099,7 @@
             elements.annotationNote.value = selected.note ?? "";
           }
           elements.annotationColor.value = selected.color ?? "#ff3b30";
+          renderNoteImages(selected);
         }
 
         function renderPicker() {
@@ -1084,7 +1137,7 @@
         function renderControls() {
           elements.undoButton.disabled = state.history.length === 0;
           elements.redoButton.disabled = state.future.length === 0;
-          elements.saveButton.disabled = !state.session || state.saving || !hasDrafts();
+          elements.saveButton.disabled = !state.session || state.saving || state.attaching > 0 || !hasDrafts();
           elements.zoom.value = String(state.zoom);
           elements.zoomValue.textContent = `${state.zoom}%`;
           elements.canvasFrame.style.width = `${state.zoom}%`;
@@ -1455,6 +1508,160 @@
           commitAnnotations([...state.annotations, annotation], annotation.id);
         }
 
+        /* ---------- 批注内粘贴截图 ---------- */
+
+        const MAX_NOTE_IMAGES = 3;
+        const IMG_MAX_EDGE = 2000;
+        const IMG_MAX_BYTES = 2.5 * 1024 * 1024;
+        // data URL 单独存 Map:批注对象里只放轻量引用,避免撤销历史克隆时复制大 base64
+        const noteImageStore = new Map();
+        let lastAttachPromise = null; // 供 autotest await,避免与异步图片处理竞争
+
+        function fileToDataUrl(file) {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(reader.error ?? new Error("读取文件失败"));
+            reader.readAsDataURL(file);
+          });
+        }
+
+        async function processImageFile(file) {
+          const bitmap = await createImageBitmap(file);
+          let width = bitmap.width;
+          let height = bitmap.height;
+          const scale = Math.min(1, IMG_MAX_EDGE / Math.max(width, height));
+          let dataUrl;
+          let mediaType = "image/png";
+          if (scale === 1 && file.size <= IMG_MAX_BYTES && (file.type === "image/png" || file.type === "image/jpeg")) {
+            mediaType = file.type;
+            dataUrl = await fileToDataUrl(file);
+          } else {
+            width = Math.max(1, Math.round(width * scale));
+            height = Math.max(1, Math.round(height * scale));
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            canvas.getContext("2d").drawImage(bitmap, 0, 0, width, height);
+            dataUrl = canvas.toDataURL("image/png");
+            if ((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75 > IMG_MAX_BYTES) {
+              mediaType = "image/jpeg";
+              dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+            }
+          }
+          bitmap.close?.();
+          const bytes = Math.round((dataUrl.length - dataUrl.indexOf(",") - 1) * 0.75);
+          if (bytes > IMG_MAX_BYTES) throw new Error("截图过大,压缩后仍超 2.5MB");
+          const id = `img-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          noteImageStore.set(id, dataUrl);
+          return { id, w: width, h: height, media_type: mediaType, bytes };
+        }
+
+        async function attachImagesToNote(files) {
+          // 临时态先只记录意向:转正推迟到至少一张图处理成功之后,失败不留垃圾批注
+          const provisional = Boolean(state.pickedElement) && !selectedAnnotation();
+          const anchor = provisional ? null : selectedAnnotation();
+          if (!provisional && (!anchor || anchor.submitted)) return;
+          const room = MAX_NOTE_IMAGES - (anchor?.images?.length ?? 0);
+          if (room <= 0) {
+            setStatus(`每条批注最多 ${MAX_NOTE_IMAGES} 张截图`, "error");
+            return;
+          }
+          state.attaching += 1; // 处理期间禁用提交按钮,防止无图 payload 抢先提交
+          renderControls();
+          try {
+            setStatus("正在处理截图…");
+            const processed = [];
+            for (const file of files.slice(0, room)) {
+              try {
+                processed.push(await processImageFile(file));
+              } catch (error) {
+                setStatus(`截图处理失败:${error.message || error}`, "error");
+              }
+            }
+            if (!processed.length) return;
+            let target;
+            if (provisional) {
+              if (!state.pickedElement || selectedAnnotation()) {
+                setStatus("元素选择已取消,截图未附加", "error");
+                return;
+              }
+              promotePickedToAnnotation(elements.annotationNote.value);
+              target = selectedAnnotation();
+            } else {
+              target = state.annotations.find((item) => item.id === anchor.id);
+            }
+            if (!target || target.submitted) {
+              setStatus("批注已删除或已提交,截图未附加", "error");
+              return;
+            }
+            // 落点重验余量:并发粘贴不允许绕过每条上限
+            const accepted = processed.slice(0, Math.max(0, MAX_NOTE_IMAGES - (target.images?.length ?? 0)));
+            if (!accepted.length) {
+              setStatus(`每条批注最多 ${MAX_NOTE_IMAGES} 张截图`, "error");
+              return;
+            }
+            target.images = [...(target.images ?? []), ...accepted];
+            markDirty();
+            renderSidebar();
+            setStatus(accepted.length < processed.length
+              ? `已附加 ${accepted.length} 张截图(超出每条上限的 ${processed.length - accepted.length} 张已忽略)`
+              : `已附加 ${accepted.length} 张截图`, "ok");
+          } finally {
+            state.attaching -= 1;
+            renderControls();
+          }
+        }
+
+        function removeImageFromSelected(index) {
+          const annotation = selectedAnnotation();
+          if (!annotation || annotation.submitted || !annotation.images) return;
+          if (state.editorSnapshot) {
+            // 说明框还聚焦时点 ×(Safari/Firefox 不触发 blur):先补压打字快照,保持撤销顺序
+            state.history.push(state.editorSnapshot);
+            state.editorSnapshot = null;
+          }
+          pushHistory(cloneAnnotations());
+          annotation.images.splice(index, 1);
+          if (!annotation.images.length) delete annotation.images;
+          markDirty();
+          renderSidebar();
+        }
+
+        function pruneNoteImageStore() {
+          // 回收无人引用的 data URL:annotations + 撤销/重做栈之外的条目都可安全释放
+          const live = new Set();
+          const collect = (list) => {
+            for (const ann of list) for (const entry of ann.images ?? []) live.add(entry.id);
+          };
+          collect(state.annotations);
+          state.history.forEach(collect);
+          state.future.forEach(collect);
+          for (const id of [...noteImageStore.keys()]) {
+            if (!live.has(id)) noteImageStore.delete(id);
+          }
+        }
+
+        function renderNoteImages(annotation) {
+          const images = annotation?.images ?? [];
+          elements.noteImages.hidden = !images.length;
+          elements.noteImages.replaceChildren();
+          images.forEach((entry, index) => {
+            const cell = document.createElement("div");
+            cell.className = "note-thumb";
+            const thumb = document.createElement("img");
+            thumb.src = noteImageStore.get(entry.id) ?? "";
+            thumb.alt = `截图 ${index + 1}`;
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.textContent = "×";
+            remove.title = "移除截图";
+            remove.addEventListener("click", () => removeImageFromSelected(index));
+            cell.append(thumb, remove);
+            elements.noteImages.appendChild(cell);
+          });
+        }
+
         /* ---------- 提交 ---------- */
 
         function geometryNorm(annotation) {
@@ -1486,21 +1693,35 @@
           if (annotation.kind === "element" && annotation.target) {
             record.target = JSON.parse(JSON.stringify(annotation.target));
           }
+          if (annotation.images?.length) {
+            record.images = annotation.images
+              .map((entry) => ({
+                data_url: noteImageStore.get(entry.id),
+                w: entry.w,
+                h: entry.h,
+                media_type: entry.media_type
+              }))
+              .filter((entry) => entry.data_url);
+          }
           return record;
         }
 
         async function submit() {
           const drafts = state.annotations.filter((item) => !item.submitted);
-          if (!drafts.length || state.saving || !state.session) return;
+          if (!drafts.length || state.saving || state.attaching > 0 || !state.session) return;
           state.saving = true;
           renderControls();
           setStatus("正在提交批注…");
           try {
             const payload = drafts.map((item) => buildSubmission(item));
+            const body = JSON.stringify({ annotations: payload });
+            if (body.length > 19 * 1024 * 1024) {
+              throw new Error("截图总量超过提交上限(约 19MB),请删减部分截图后再提交");
+            }
             const response = await fetch("/api/submit", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ annotations: payload })
+              body
             });
             const output = await response.json();
             if (!response.ok) throw new Error(output.error || "提交失败");
@@ -1511,6 +1732,7 @@
             state.selectedId = null;
             state.history = [];
             state.future = [];
+            pruneNoteImageStore();
             setStatus(`已提交 ${drafts.length} 条批注给 Claude(批次 #${output.batch_id})`, "ok");
             renderAll();
           } catch (error) {
@@ -1536,6 +1758,7 @@
               state.selectedId = null;
               state.pickedElement = null;
               state.hoverElement = null;
+              pruneNoteImageStore();
               await loadSvg(session.svg_mtime);
               elements.emptyState.hidden = true;
               setStatus("已载入,可开始批注", "ok");
@@ -1576,6 +1799,7 @@
             state.future = [];
             if (!selectedAnnotation()) state.selectedId = null;
           }
+          pruneNoteImageStore();
           setStatus(
             state.annotations.length !== before ? "图已更新,已清除已提交的批注" : "图已更新",
             "ok"
@@ -1803,6 +2027,15 @@
           }
           updateSelected({ note: elements.annotationNote.value });
         });
+        elements.annotationNote.addEventListener("paste", (event) => {
+          const files = [...(event.clipboardData?.items ?? [])]
+            .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+            .map((item) => item.getAsFile())
+            .filter(Boolean);
+          if (!files.length) return; // 纯文字粘贴走默认行为
+          event.preventDefault();
+          lastAttachPromise = attachImagesToNote(files);
+        });
         elements.annotationNote.addEventListener("blur", () => {
           if (state.editorSnapshot) {
             state.history.push(state.editorSnapshot);
@@ -1923,10 +2156,49 @@
             document.title = "AUTOTEST-PICKED";
             return;
           }
-          promotePickedToAnnotation("autotest 元素批注");
+          if (params.get("autotest_paste")) {
+            // 走真实粘贴链路:合成 ClipboardEvent(DataTransfer + File)投给说明框
+            elements.annotationNote.focus();
+            const file = await autotestMakePng();
+            let dispatched = false;
+            try {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              const evt = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+              elements.annotationNote.dispatchEvent(evt);
+              dispatched = evt.defaultPrevented;
+            } catch {
+              dispatched = false;
+            }
+            if (dispatched && lastAttachPromise) await lastAttachPromise;
+            else await attachImagesToNote([file]); // 环境不支持合成剪贴板时直连附图管线
+            if (!selectedAnnotation()?.images?.length) {
+              document.title = "AUTOTEST-PASTE-FAIL";
+              return;
+            }
+            updateSelected({ note: "autotest 元素批注" }, true);
+            if (params.get("autotest_stage") === "paste") {
+              document.title = "AUTOTEST-PASTED";
+              return; // 停在附图未提交态,供截图检查缩略图 UI
+            }
+          } else {
+            promotePickedToAnnotation("autotest 元素批注");
+          }
           renderAll();
           await submit();
           document.title = "AUTOTEST-DONE";
+        }
+
+        function autotestMakePng() {
+          return new Promise((resolve) => {
+            const canvas = document.createElement("canvas");
+            canvas.width = 40;
+            canvas.height = 30;
+            const ctx = canvas.getContext("2d");
+            ctx.fillStyle = "#ff3b30";
+            ctx.fillRect(0, 0, 40, 30);
+            canvas.toBlob((blob) => resolve(new File([blob], "autotest.png", { type: "image/png" })), "image/png");
+          });
         }
 
         /* 初始会话用一次性 fetch 引导(SSE 只负责后续推送,也便于无 SSE 调试) */

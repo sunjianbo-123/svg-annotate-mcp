@@ -6,9 +6,11 @@
 
 from __future__ import annotations
 
+import base64
 import http.client
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -138,11 +140,17 @@ def main() -> None:
                          "ancestors": ["figure_1", "axes_1", "text_1"],
                          "bbox_norm": [0.1, 0.2, 0.3, 0.1], "coverage": 1.0}],
                "texts_in_region": ["hello legend"]}
+        png_b64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
+                   "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
         ann_el = {"number": 2, "kind": "element", "note": "该文字改 Arial",
                   "geometry_norm": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.1},
                   "target": {"tag": "text", "id": "text_1", "text": "hello legend",
                              "ancestors": ["figure_1", "axes_1", "text_1"],
                              "bbox_norm": [0.1, 0.2, 0.3, 0.1]},
+                  "images": [{"data_url": f"data:image/png;base64,{png_b64}",
+                              "w": 1, "h": 1, "media_type": "image/png"},
+                             {"data_url": "data:image/png;base64,",  # 空负载应被丢弃并计数
+                              "w": 1, "h": 1, "media_type": "image/png"}],
                   "hits": [], "texts_in_region": ["hello legend"]}
         req = urllib.request.Request(f"http://127.0.0.1:{port}/api/submit",
                                      data=json.dumps({"annotations": [ann, ann_el]}).encode(),
@@ -162,7 +170,32 @@ def main() -> None:
         assert el["target"]["bbox_svg"] == [20.0, 20.0, 60.0, 10.0], el["target"]
         assert "bbox_norm" not in el["target"]
         assert el["geometry_svg"] == {"x": 20.0, "y": 20.0, "w": 60.0, "h": 10.0}, el
-        print("[4] 阻塞等待 + 提交 + geometry_svg/bbox_svg/target 换算 ok")
+        assert len(el["images"]) == 1 and el["images_dropped"] == 1, el  # 空负载被丢弃并计数
+        img = el["images"][0]
+        assert "data_url" not in img, img  # 回传 payload 不携带 base64
+        expected_png = base64.b64decode(png_b64)
+        img_path = pathlib.Path(img["path"])
+        assert img_path.is_file() and img_path.read_bytes() == expected_png, img
+        assert img["media_type"] == "image/png" and img["bytes"] == len(expected_png), img
+        assert img["w"] == 1 and img["h"] == 1, img
+        print("[4] 阻塞等待 + 提交 + geometry_svg/bbox_svg/target 换算 + 截图落盘 ok")
+
+        # 4b. FIFO 队列:快速连提两批,逐批按序取回,不覆盖不丢批
+        for note in ("第一批", "第二批"):
+            ann_q = {"number": 1, "kind": "rect", "note": note,
+                     "geometry_norm": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
+                     "hits": [], "texts_in_region": []}
+            req = urllib.request.Request(f"http://127.0.0.1:{port}/api/submit",
+                                         data=json.dumps({"annotations": [ann_q]}).encode(),
+                                         headers={"Content-Type": "application/json"})
+            json.load(urllib.request.urlopen(req))
+        r1 = s.call_tool("wait_for_annotations", {"timeout_s": 5}, timeout_s=15)
+        r2 = s.call_tool("wait_for_annotations", {"timeout_s": 5}, timeout_s=15)
+        assert r1["annotations"][0]["note"] == "第一批" and r1["pending"] == 1, r1
+        assert r2["annotations"][0]["note"] == "第二批" and r2["pending"] == 0, r2
+        r3 = s.call_tool("get_annotations", {})
+        assert r3["annotations"][0]["note"] == "第二批" and r3["already_taken"] is True, r3
+        print("[4b] FIFO 队列连提两批不丢 + 兜底重读 ok")
 
         # 5. wait 超时语义(无新批注时返回 timeout 而非报错)
         r = s.call_tool("wait_for_annotations", {"timeout_s": 5}, timeout_s=15)

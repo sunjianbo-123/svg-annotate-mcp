@@ -18,7 +18,7 @@ log = logging.getLogger("svg-annotate")
 
 WEB_DIR = Path(__file__).parent / "web"
 SSE_PING_S = 15
-MAX_SUBMIT_BYTES = 5 * 1024 * 1024
+MAX_SUBMIT_BYTES = 20 * 1024 * 1024  # 批注可含粘贴截图(base64),放宽到 20MB
 
 
 class Handler(BaseHTTPRequestHandler):
