@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 470px 1fr; gap: 46px; height: 100%; padding: 60px 64px 56px; }
+  .copy { display: flex; flex-direction: column; gap: 24px; justify-content: center; padding-bottom: 30px; }
+  h1.title { font-size: 50px; line-height: 1.2; }
+  .desc { font-size: 21px; line-height: 1.75; }
+  .points { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+  .point { display: flex; gap: 12px; align-items: baseline; font-size: 18.5px; color: #c6d4f2; }
+  .point .no { color: #7ba2ff; font-weight: 800; font-family: ui-monospace, Menlo, monospace; }
+  .stage { display: flex; flex-direction: column; gap: 30px; justify-content: center; }
+  .shotwrap { position: relative; align-self: center; margin-top: 30px; }
+  .shot .crop { width: 832px; height: 160px; border-radius: 12px; }
+  .shot .crop img { width: 2560px; left: -264px; top: -1288px; }
+  .jsonpanel { align-self: center; width: 832px; padding: 24px 30px; }
+  .jsonpanel .cap { margin-bottom: 12px; color: #8aa0c8; font-size: 15px; letter-spacing: 0.08em; font-weight: 700; }
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 17.5px;
+    line-height: 1.62;
+    color: #c9d6f0;
+  }
+  .k { color: #7ba2ff; }
+  .s { color: #8fd6a8; }
+  .n { color: #f0b76a; }
+  .hl { background: rgba(36, 88, 211, 0.28); border-radius: 4px; padding: 1px 3px; }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="copy">
+      <span class="eyebrow" style="align-self:flex-start;">亮点 03 · STRUCTURED PAYLOAD</span>
+      <h1 class="title">回传的不是截图,<br />是精确锚点</h1>
+      <div class="desc muted">
+        每条批注都带被点选元素的语义 id、逐字文字与
+        viewBox 坐标——Claude 拿到就能在生成脚本里
+        grep 定位,不靠猜。
+      </div>
+      <div class="points">
+        <div class="point"><span class="no">01</span>target.id / text 直接当 grep 锚</div>
+        <div class="point"><span class="no">02</span>bbox 已换算到 SVG viewBox 坐标系</div>
+        <div class="point"><span class="no">03</span>区域批注另带 hits[] 命中列表与区域内文字</div>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="shotwrap">
+        <div class="shot browser">
+          <div class="crop"><img src="../shots/submitted_fig11.png" alt="" /></div>
+        </div>
+        <span class="callout point-down" style="left: 20px; top: -42px;">提交后:编号徽章 ① · 半透明留档</span>
+      </div>
+      <div class="jsonpanel panel">
+        <div class="cap">WAIT_FOR_ANNOTATIONS() → 返回(节选)</div>
+        <pre>{
+  <span class="k">"kind"</span>: <span class="s">"element"</span>,
+  <span class="k">"note"</span>: <span class="s">"图例第一行挪到面板右上角"</span>,
+  <span class="k">"target"</span>: {
+    <span class="k">"id"</span>: <span class="s hl">"text_54"</span>,
+    <span class="k">"text"</span>: <span class="s hl">"RsCIN-raw — best in 7/27"</span>,
+    <span class="k">"ancestors"</span>: [<span class="s">"figure_1"</span>, <span class="s">"legend_1"</span>, <span class="s">"text_54"</span>],
+    <span class="k">"bbox_svg"</span>: [<span class="n">87.91</span>, <span class="n">293.06</span>, <span class="n">68.95</span>, <span class="n">7.07</span>]
+  },
+  <span class="k">"geometry_svg"</span>: { <span class="k">"x"</span>: <span class="n">87.93</span>, <span class="k">"y"</span>: <span class="n">293.08</span>, <span class="k">"w"</span>: <span class="n">68.93</span>, <span class="k">"h"</span>: <span class="n">7.08</span> }
+}</pre>
+      </div>
+    </div>
+  </div>
+  <div class="footer-url">github.com/sunjianbo-123/svg-annotate-mcp</div>
+</body>
+</html>

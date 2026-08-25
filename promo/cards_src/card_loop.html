@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .wrap { display: flex; flex-direction: column; height: 100%; padding: 64px 80px 56px; }
+  .head { display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center; }
+  h1.title { font-size: 54px; }
+  .desc { font-size: 22px; }
+  .flow {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0;
+    margin-top: 74px;
+  }
+  .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 236px;
+    padding: 30px 18px 26px;
+    text-align: center;
+  }
+  .node .ico {
+    display: grid;
+    place-items: center;
+    width: 74px;
+    height: 74px;
+    border: 1px solid rgba(123, 162, 255, 0.4);
+    border-radius: 20px;
+    background: linear-gradient(160deg, rgba(36, 88, 211, 0.35), rgba(24, 39, 71, 0.9));
+    font-size: 34px;
+    box-shadow: 0 14px 34px rgba(10, 24, 60, 0.5);
+  }
+  .node .t { font-size: 21px; font-weight: 750; }
+  .node .s { color: #9fb0cc; font-size: 15.5px; line-height: 1.55; }
+  .node .s code { color: #a8c0ff; font-size: 14px; }
+  .step-arrow {
+    align-self: center;
+    margin-top: -34px;
+    color: #5c7ec9;
+    font-size: 30px;
+    font-weight: 700;
+  }
+  .loopline { position: relative; margin: 20px 90px 0; height: 86px; }
+  .loopline svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .loopline .lbl {
+    position: absolute;
+    left: 50%;
+    top: 46px;
+    transform: translateX(-50%);
+    padding: 6px 16px;
+    border: 1px solid rgba(123, 162, 255, 0.4);
+    border-radius: 999px;
+    background: #14213c;
+    color: #9db9ff;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .foot { display: flex; justify-content: center; gap: 18px; margin-top: 34px; }
+  .foot .chip { font-size: 16.5px; color: #b9c8e8; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head">
+      <span class="eyebrow">亮点 02 · CLOSED LOOP</span>
+      <h1 class="title">批注 → 修改 → 刷新,一个闭环</h1>
+      <div class="desc muted">你在页面上标,Claude 在源头改;图一变,页面秒级自动刷新,直接标下一轮。</div>
+    </div>
+    <div class="flow">
+      <div class="node panel">
+        <span class="ico">🖱️</span>
+        <span class="t">圈选 / 点选批注</span>
+        <span class="s">元素检查器或矩形、箭头、自由线、文字工具</span>
+      </div>
+      <span class="step-arrow">➜</span>
+      <div class="node panel">
+        <span class="ico">📦</span>
+        <span class="t">MCP 回传</span>
+        <span class="s">批注携元素锚点<br /><code>wait_for_annotations()</code> 阻塞等待</span>
+      </div>
+      <span class="step-arrow">➜</span>
+      <div class="node panel">
+        <span class="ico">🤖</span>
+        <span class="t">Claude 改源头</span>
+        <span class="s">按 target.id 定位,改生成脚本或直接改 SVG</span>
+      </div>
+      <span class="step-arrow">➜</span>
+      <div class="node panel">
+        <span class="ico">⚙️</span>
+        <span class="t">重跑出图</span>
+        <span class="s">matplotlib 脚本重跑,产物落回原路径</span>
+      </div>
+      <span class="step-arrow">➜</span>
+      <div class="node panel">
+        <span class="ico">🔄</span>
+        <span class="t">页面自动刷新</span>
+        <span class="s">watcher 监视 mtime,防写一半;视角与草稿保留</span>
+      </div>
+    </div>
+    <div class="loopline">
+      <svg viewBox="0 0 1200 86" fill="none">
+        <path d="M 1130 6 C 1130 62, 1060 62, 600 62 C 140 62, 70 62, 70 14"
+              stroke="#5c7ec9" stroke-width="2.5" stroke-dasharray="9 7" />
+        <path d="M 62 26 L 70 8 L 79 26" stroke="#5c7ec9" stroke-width="2.5" stroke-linejoin="round" />
+      </svg>
+      <span class="lbl">继续标下一轮 · 直到图改满意</span>
+    </div>
+    <div class="foot">
+      <span class="chip">⏱ 超时即重等,批注永不丢</span>
+      <span class="chip">🛡 双拍稳定 + 尾校验,savefig 写一半不误刷</span>
+      <span class="chip">✏️ 未提交草稿跨刷新保留</span>
+    </div>
+  </div>
+  <div class="footer-url">github.com/sunjianbo-123/svg-annotate-mcp</div>
+</body>
+</html>

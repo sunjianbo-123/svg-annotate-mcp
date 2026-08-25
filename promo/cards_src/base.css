@@ -1,0 +1,128 @@
+/* 宣传卡共用基底:1600x900,深色,品牌蓝 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 1600px; height: 900px; overflow: hidden; }
+body {
+  position: relative;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, rgba(36, 88, 211, 0.28), transparent 60%),
+    radial-gradient(900px 600px at -5% 110%, rgba(123, 162, 255, 0.14), transparent 55%),
+    linear-gradient(150deg, #0d1526 0%, #111c33 55%, #14213c 100%);
+  color: #f2f5fa;
+  font-family: "PingFang SC", "Hiragino Sans GB", "SF Pro Display", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border: 1px solid rgba(123, 162, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(36, 88, 211, 0.18);
+  color: #a8c0ff;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+}
+h1.title {
+  background: linear-gradient(100deg, #ffffff 20%, #9db9ff 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+.muted { color: #9fb0cc; }
+.accent { color: #7ba2ff; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 18px;
+  border: 1px solid rgba(123, 162, 255, 0.35);
+  border-radius: 12px;
+  background: rgba(24, 39, 71, 0.75);
+  font-size: 19px;
+  font-weight: 600;
+}
+.brandmark {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2458d3, #4f7df0);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: 0 8px 22px rgba(36, 88, 211, 0.45);
+}
+.footer-url {
+  position: absolute;
+  right: 46px;
+  bottom: 30px;
+  color: #7c8db0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+/* 浏览器窗口 mockup */
+.browser {
+  overflow: hidden;
+  border: 1px solid rgba(148, 175, 230, 0.22);
+  border-radius: 14px;
+  background: #0e1524;
+  box-shadow: 0 30px 80px rgba(3, 8, 20, 0.65), 0 6px 18px rgba(3, 8, 20, 0.4);
+}
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(148, 175, 230, 0.16);
+  background: linear-gradient(#1a2440, #151e36);
+}
+.browser-bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+.browser-bar .addr {
+  flex: 1;
+  margin: 0 10px;
+  padding: 4px 12px;
+  border-radius: 7px;
+  background: rgba(10, 16, 30, 0.8);
+  color: #8aa0c8;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+}
+/* 截图裁切窗:.crop 定宽高,内部 img 绝对定位负偏移 */
+.crop { position: relative; overflow: hidden; }
+.crop img { position: absolute; display: block; }
+.callout {
+  position: absolute;
+  z-index: 4;
+  padding: 7px 13px;
+  border-radius: 9px;
+  background: #2458d3;
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 650;
+  box-shadow: 0 8px 20px rgba(16, 34, 80, 0.55);
+  white-space: nowrap;
+}
+.callout::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #2458d3;
+  transform: rotate(45deg);
+}
+.callout.point-down::after { left: 24px; bottom: -4px; }
+.callout.point-up::after { left: 24px; top: -4px; }
+.panel {
+  border: 1px solid rgba(148, 175, 230, 0.2);
+  border-radius: 14px;
+  background: rgba(14, 21, 36, 0.9);
+  box-shadow: 0 22px 60px rgba(3, 8, 20, 0.55);
+}
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }

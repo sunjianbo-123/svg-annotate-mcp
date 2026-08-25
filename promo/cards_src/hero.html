@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    padding: 52px 64px 0;
+  }
+  .head-left { display: flex; flex-direction: column; gap: 18px; }
+  .brand-row { display: flex; align-items: center; gap: 16px; }
+  .brand-row .name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 27px;
+    font-weight: 700;
+    color: #c9d8ff;
+    letter-spacing: 0.01em;
+  }
+  h1.title { font-size: 64px; line-height: 1.12; }
+  .sub { font-size: 24px; line-height: 1.5; }
+  .chips { display: flex; gap: 14px; margin-bottom: 6px; }
+  .shot-wrap {
+    position: absolute;
+    left: 110px;
+    right: 110px;
+    top: 342px;
+  }
+  .browser .crop { width: 100%; height: 520px; }
+  .browser .crop img { width: 1378px; left: 0; top: -300px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="head-left">
+      <div class="brand-row">
+        <span class="brandmark">SVG</span>
+        <span class="name">svg-annotate-mcp</span>
+        <span class="eyebrow">MCP · 开源</span>
+      </div>
+      <h1 class="title">在浏览器里圈图批注,<br />让 Claude 替你改图</h1>
+      <div class="mono" style="color:#7c8db0; font-size:17px;">github.com/sunjianbo-123/svg-annotate-mcp</div>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:16px; padding-bottom: 8px;">
+      <div class="sub muted" style="text-align:right;">点选 SVG 元素或圈选区域写下修改意见,<br />批注实时回传 Claude 修改源文件,页面自动刷新。</div>
+      <div class="chips">
+        <span class="chip">🎯 元素级点选</span>
+        <span class="chip">📡 MCP 实时回传</span>
+        <span class="chip">🔄 改完自动刷新</span>
+      </div>
+    </div>
+  </div>
+  <div class="shot-wrap browser">
+    <div class="browser-bar">
+      <span class="dot" style="background:#ff5f57"></span>
+      <span class="dot" style="background:#febc2e"></span>
+      <span class="dot" style="background:#28c840"></span>
+      <span class="addr">127.0.0.1 · figure11.svg — SVG 批注 · svg-annotate</span>
+    </div>
+    <div class="crop"><img src="../shots/picked_fig11.png" alt="" /></div>
+  </div>
+</body>
+</html>

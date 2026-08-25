@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .top { display: flex; align-items: flex-end; justify-content: space-between; padding: 32px 64px 18px; }
+  .top-left { display: flex; align-items: center; gap: 20px; }
+  h1.title { font-size: 40px; }
+  .top .sub { font-size: 18px; text-align: right; }
+  .stagearea { position: relative; height: 100%; }
+  .shot-wrap { position: absolute; left: 240px; top: 6px; width: 1120px; }
+  .browser .crop { width: 1120px; height: 700px; }
+  .browser .crop img { width: 1120px; left: 0; top: 0; }
+  .footer-url { right: auto; left: 64px; }
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="top-left">
+      <span class="eyebrow">界面总览 · FULL WORKSPACE</span>
+      <h1 class="title">批注工作台,一屏全览</h1>
+    </div>
+    <div class="sub muted">打开 SVG 即这一屏:标注、回传、自动刷新,<br />全流程不用换窗口。</div>
+  </div>
+  <div class="stagearea">
+    <div class="shot-wrap browser">
+      <div class="browser-bar">
+        <span class="dot" style="background:#ff5f57"></span>
+        <span class="dot" style="background:#febc2e"></span>
+        <span class="dot" style="background:#28c840"></span>
+        <span class="addr">127.0.0.1 · figure11.svg — SVG 批注 · svg-annotate</span>
+      </div>
+      <div class="crop"><img src="../shots/picked_fig11.png" alt="" /></div>
+    </div>
+    <span class="callout point-up" style="left: 262px; top: 126px;">选择 · 抓手 · 矩形 · 箭头 · 自由线 · 文字,可撤销重做</span>
+    <span class="callout point-down" style="left: 380px; top: 576px;">悬停即高亮,点选开检查器</span>
+    <span class="callout point-up" style="left: 1048px; top: 592px;">元素检查器:id · 逐字文字 · 层级路径</span>
+    <span class="callout point-up" style="left: 1256px; top: 750px;">一键提交给 Claude</span>
+  </div>
+  <div class="footer-url">github.com/sunjianbo-123/svg-annotate-mcp</div>
+</body>
+</html>

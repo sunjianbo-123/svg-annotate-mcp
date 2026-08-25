@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="base.css" />
+<style>
+  .layout { display: grid; grid-template-columns: 520px 1fr; gap: 40px; height: 100%; padding: 60px 64px 56px; }
+  .copy { display: flex; flex-direction: column; gap: 24px; padding-top: 26px; }
+  h1.title { font-size: 52px; line-height: 1.18; }
+  .desc { font-size: 21.5px; line-height: 1.75; }
+  .points { display: flex; flex-direction: column; gap: 14px; margin-top: 6px; }
+  .point { display: flex; gap: 12px; align-items: baseline; font-size: 19px; color: #c6d4f2; }
+  .point .no { color: #7ba2ff; font-weight: 800; font-family: ui-monospace, Menlo, monospace; }
+  .stagearea { position: relative; }
+  .legend-shot { position: absolute; left: 6px; top: 8px; }
+  .legend-shot .crop { width: 884px; height: 196px; border-radius: 12px; }
+  .legend-shot .crop img { width: 2720px; left: -280px; top: -1360px; }
+  .click-hint {
+    position: absolute;
+    left: 340px;
+    top: 262px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #9db9ff;
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .click-hint .arrow { font-size: 30px; }
+  .inspector-shot { position: absolute; left: 300px; top: 322px; }
+  .inspector-shot .crop { width: 438px; height: 452px; border-radius: 12px; }
+  .inspector-shot .crop img { width: 2304px; left: -1855px; top: -898px; }
+</style>
+</head>
+<body>
+  <div class="layout">
+    <div class="copy">
+      <span class="eyebrow" style="align-self:flex-start;">亮点 01 · ELEMENT PICKING</span>
+      <h1 class="title">元素级点选,<br />点哪改哪</h1>
+      <div class="desc muted">
+        像网页设计工具一样操作论文图:悬停即高亮
+        SVG 语义元素,点击打开元素检查器——逐字文字、
+        层级路径一目了然;填一句修改说明,批注即成。
+      </div>
+      <div class="points">
+        <div class="point"><span class="no">01</span>悬停实时高亮 text / line2d / legend 语义组</div>
+        <div class="point"><span class="no">02</span>层级路径 figure_1 › legend_1 › text_54,可改选父组</div>
+        <div class="point"><span class="no">03</span>纯点击 = 检查器,填了说明才生成批注</div>
+      </div>
+    </div>
+    <div class="stagearea">
+      <div class="legend-shot browser">
+        <div class="crop"><img src="../shots/picked_fig11.png" alt="" /></div>
+      </div>
+      <span class="callout point-down" style="left: 30px; top: -24px;">点击图例文字 → 蓝框选中 text_54</span>
+      <div class="click-hint"><span class="arrow">⤵</span>侧栏立即打开元素检查器</div>
+      <div class="inspector-shot panel">
+        <div class="crop"><img src="../shots/picked_fig11.png" alt="" /></div>
+      </div>
+      <span class="callout point-up" style="left: 762px; top: 400px;">元素文字逐字回传</span>
+      <span class="callout point-up" style="left: 762px; top: 478px;">层级路径可点选父组</span>
+    </div>
+  </div>
+  <div class="footer-url">github.com/sunjianbo-123/svg-annotate-mcp</div>
+</body>
+</html>
